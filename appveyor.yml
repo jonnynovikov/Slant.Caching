@@ -20,3 +20,5 @@ after_build:
 artifacts:
 - path: artifacts\*.nupkg
   name: nugets
+deploy:
+- provider: NuGet
