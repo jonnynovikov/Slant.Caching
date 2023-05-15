@@ -20,8 +20,3 @@ after_build:
 artifacts:
 - path: artifacts\*.nupkg
   name: nugets
-deploy:
-- provider: NuGet
-  server: https://www.myget.org/F/jkatsiotis/api/v2/package
-  symbol_server: https://www.myget.org/F/jkatsiotis/api/v2/package
-  artifact: nugets

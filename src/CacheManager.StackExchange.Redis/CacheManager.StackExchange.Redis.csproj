@@ -10,9 +10,6 @@
   <ItemGroup>
     <PackageReference Include="StackExchange.Redis" Version="2.6.111" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\CacheManager.Core\CacheManager.Core.csproj" />
-  </ItemGroup>
   <ItemGroup Condition=" '$(TargetFramework)' == 'net461' ">
     <Reference Include="System.Configuration" />
   </ItemGroup>
