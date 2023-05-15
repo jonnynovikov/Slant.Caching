@@ -23,6 +23,7 @@ artifacts:
 deploy:
 - provider: NuGet
   server: https://www.myget.org/F/jkatsiotis/api/v2/package
-  api_key: $env:myGetKey
+  api_key: 
+    secure: E7CIMvZ8bRN+UX39M1O8r24rgP4VYOiQ27fdc/zV0VVkI+7niBItqp/TnSd9W0CC
   symbol_server: https://www.myget.org/F/jkatsiotis/api/v2/package
   artifact: nugets
