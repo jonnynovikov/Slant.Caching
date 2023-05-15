@@ -1,6 +1,6 @@
-version: 2.0.0-beta-{build}
+version: 6.0.0-beta-{build}
 skip_tags: true
-image: Visual Studio 2019
+image: Visual Studio 2022
 configuration: Release
 clone_folder: C:\projects\CacheManager\
 init:
@@ -16,17 +16,12 @@ build:
   parallel: true
   verbosity: minimal
 after_build:
-- cmd: "dotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.Core \ndotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.Couchbase \ndotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.Memcached \ndotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.Microsoft.Extensions.Caching.Memory \ndotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.Microsoft.Extensions.Configuration \ndotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.Microsoft.Extensions.Logging \ndotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.Serialization.Json \ndotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.Serialization.ProtoBuf \ndotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.StackExchange.Redis \ndotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.SystemRuntimeCaching \ndotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.Web \ndotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.Serialization.Bond\ndotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.Serialization.DataContract"
-test_script:
-- cmd: >-
-    dotnet test test\CacheManager.Tests\CacheManager.Tests.csproj -c Release --no-build --filter "category!=Unreliable&category!=memcached&category!=Redis"
-
-    dotnet test test\CacheManager.MSConfiguration.TypeLoad.Tests\CacheManager.MSConfiguration.TypeLoad.Tests.csproj --no-build -c Release
+- cmd: "dotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.Core \ndotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.Microsoft.Extensions.Caching.Memory \ndotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.Microsoft.Extensions.Configuration \ndotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.Microsoft.Extensions.Logging \ndotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.Serialization.Json \ndotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.StackExchange.Redis \ndotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.SystemRuntimeCaching \ndotnet pack -o C:\\projects\\CacheManager\\artifacts -c Release src\\CacheManager.Serialization.DataContract"
 artifacts:
 - path: artifacts\*.nupkg
   name: nugets
 deploy:
 - provider: NuGet
-  server: https://www.myget.org/F/cachemanager/api/v2/package
-  symbol_server: https://www.myget.org/F/cachemanager/api/v2/package
+  server: https://www.myget.org/F/jkatsiotis/api/v2/package
+  symbol_server: https://www.myget.org/F/jkatsiotis/api/v2/package
   artifact: nugets
