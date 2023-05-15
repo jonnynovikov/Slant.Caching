@@ -7,8 +7,8 @@ init:
 - cmd: if "%APPVEYOR_REPO_BRANCH%" == "master" (set VersionSuffix=) else (set VersionSuffix=beta)
 environment:
   BuildNumber: $(APPVEYOR_BUILD_NUMBER)
-install:
-- ps: C:\projects\CacheManager\tools\redis\install-service.cmd
+#install:
+#- ps: C:\projects\CacheManager\tools\redis\install-service.cmd
 before_build:
 - cmd: dotnet restore
 build:
