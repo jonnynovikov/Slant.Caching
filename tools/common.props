@@ -11,11 +11,11 @@
     
     <PackageIcon>icon.png</PackageIcon>
     
-    <PackageProjectUrl>http://cachemanager.michaco.net</PackageProjectUrl>
-    <WebPage>http://cachemanager.michaco.net</WebPage>
+    <PackageProjectUrl>https://github.com/jkatsiotis/CacheManager</PackageProjectUrl>
+    <WebPage>https://github.com/jkatsiotis/CacheManager</WebPage>
 
     <RepositoryType>git</RepositoryType>
-    <RepositoryUrl>https://github.com/MichaCo/CacheManager</RepositoryUrl>
+    <RepositoryUrl>https://github.com/jkatsiotis/CacheManager</RepositoryUrl>
 
     <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)key.snk</AssemblyOriginatorKeyFile>
     <SignAssembly>true</SignAssembly>
