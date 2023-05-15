@@ -13,4 +13,7 @@
   <ItemGroup Condition=" '$(TargetFramework)' == 'net45' ">
     <PackageReference Include="Newtonsoft.Json" Version="9.0.1" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\CacheManager.Core\CacheManager.Core.csproj" />
+  </ItemGroup>
 </Project>
