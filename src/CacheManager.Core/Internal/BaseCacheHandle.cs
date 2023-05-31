@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
 using CacheManager.Core.Logging;
 using static CacheManager.Core.Utility.Guard;
 
@@ -13,7 +15,7 @@ namespace CacheManager.Core.Internal
     /// <typeparam name="TCacheValue">The type of the cache value.</typeparam>
     public abstract class BaseCacheHandle<TCacheValue> : BaseCache<TCacheValue>
     {
-        private readonly object _updateLock = new object();
+        private readonly SemaphoreSlim semaphoreSlim = new SemaphoreSlim(1, 1);
 
         /// <summary>
         /// Initializes a new instance of the <see cref="BaseCacheHandle{TCacheValue}"/> class.
@@ -96,14 +98,15 @@ namespace CacheManager.Core.Internal
         /// If the cache does not use a distributed cache system. Update is doing exactly the same
         /// as Get plus Put.
         /// </remarks>
-        public virtual UpdateItemResult<TCacheValue> Update(string key, Func<TCacheValue, TCacheValue> updateValue, int maxRetries)
+        public virtual async Task<UpdateItemResult<TCacheValue>> Update(string key, Func<TCacheValue, TCacheValue> updateValue, int maxRetries)
         {
             NotNull(updateValue, nameof(updateValue));
             CheckDisposed();
-
-            lock (_updateLock)
+            await semaphoreSlim.WaitAsync();
+            try
             {
-                var original = GetCacheItem(key);
+
+                var original = await GetCacheItem(key);
                 if (original == null)
                 {
                     return UpdateItemResult.ForItemDidNotExist<TCacheValue>();
@@ -118,8 +121,12 @@ namespace CacheManager.Core.Internal
 
                 var newItem = original.WithValue(newValue);
                 newItem.LastAccessedUtc = DateTime.UtcNow;
-                Put(newItem);
+                await Put(newItem);
                 return UpdateItemResult.ForSuccess(newItem);
+            }
+            finally
+            {
+                semaphoreSlim.Release();
             }
         }
 
@@ -150,14 +157,14 @@ namespace CacheManager.Core.Internal
         /// If the cache does not use a distributed cache system. Update is doing exactly the same
         /// as Get plus Put.
         /// </remarks>
-        public virtual UpdateItemResult<TCacheValue> Update(string key, string region, Func<TCacheValue, TCacheValue> updateValue, int maxRetries)
+        public virtual async Task<UpdateItemResult<TCacheValue>> Update(string key, string region, Func<TCacheValue, TCacheValue> updateValue, int maxRetries)
         {
             NotNull(updateValue, nameof(updateValue));
             CheckDisposed();
-
-            lock (_updateLock)
+            await semaphoreSlim.WaitAsync();
+            try
             {
-                var original = GetCacheItem(key, region);
+                var original = await GetCacheItem(key, region);
                 if (original == null)
                 {
                     return UpdateItemResult.ForItemDidNotExist<TCacheValue>();
@@ -172,8 +179,12 @@ namespace CacheManager.Core.Internal
                 var newItem = original.WithValue(newValue);
 
                 newItem.LastAccessedUtc = DateTime.UtcNow;
-                Put(newItem);
+                await Put(newItem);
                 return UpdateItemResult.ForSuccess(newItem);
+            }
+            finally
+            {
+                semaphoreSlim.Release();
             }
         }
 
@@ -184,11 +195,11 @@ namespace CacheManager.Core.Internal
         /// <returns>
         /// <c>true</c> if the key was not already added to the cache, <c>false</c> otherwise.
         /// </returns>
-        protected internal override bool AddInternal(CacheItem<TCacheValue> item)
+        protected internal override async Task<bool> AddInternal(CacheItem<TCacheValue> item)
         {
             CheckDisposed();
             item = GetItemExpiration(item);
-            return AddInternalPrepared(item);
+            return await AddInternalPrepared(item);
         }
 
         /// <summary>
@@ -196,11 +207,11 @@ namespace CacheManager.Core.Internal
         /// with the new value. If the item doesn't exist, the item will be added to the cache.
         /// </summary>
         /// <param name="item">The <c>CacheItem</c> to be added to the cache.</param>
-        protected internal override void PutInternal(CacheItem<TCacheValue> item)
+        protected internal override async Task PutInternal(CacheItem<TCacheValue> item)
         {
             CheckDisposed();
             item = GetItemExpiration(item);
-            PutInternalPrepared(item);
+            await PutInternalPrepared(item);
         }
 
         /// <summary>
@@ -232,7 +243,7 @@ namespace CacheManager.Core.Internal
         /// <returns>
         /// <c>true</c> if the key was not already added to the cache, <c>false</c> otherwise.
         /// </returns>
-        protected abstract bool AddInternalPrepared(CacheItem<TCacheValue> item);
+        protected abstract Task<bool> AddInternalPrepared(CacheItem<TCacheValue> item);
 
         /// <summary>
         /// Performs application-defined tasks associated with freeing, releasing, or resetting
@@ -297,6 +308,6 @@ namespace CacheManager.Core.Internal
         /// with the new value. If the item doesn't exist, the item will be added to the cache.
         /// </summary>
         /// <param name="item">The <c>CacheItem</c> to be added to the cache.</param>
-        protected abstract void PutInternalPrepared(CacheItem<TCacheValue> item);
+        protected abstract Task PutInternalPrepared(CacheItem<TCacheValue> item);
     }
 }

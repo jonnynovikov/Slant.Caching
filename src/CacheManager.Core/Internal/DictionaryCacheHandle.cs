@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using CacheManager.Core.Logging;
 using static CacheManager.Core.Utility.Guard;
 
@@ -75,14 +76,14 @@ namespace CacheManager.Core.Internal
         /// <summary>
         /// Clears this cache, removing all items in the base cache and all regions.
         /// </summary>
-        public override void Clear() => _cache.Clear();
+        public override Task Clear() {_cache.Clear(); return Task.CompletedTask; }
 
         /// <summary>
         /// Clears the cache region, removing all items from the specified <paramref name="region"/> only.
         /// </summary>
         /// <param name="region">The cache region.</param>
         /// <exception cref="System.ArgumentNullException">If region is null.</exception>
-        public override void ClearRegion(string region)
+        public override Task ClearRegion(string region)
         {
             NotNullOrWhiteSpace(region, nameof(region));
 
@@ -91,22 +92,23 @@ namespace CacheManager.Core.Internal
             {
                 _cache.TryRemove(item.Key, out CacheItem<TCacheValue> val);
             }
+            return Task.CompletedTask;
         }
 
         /// <inheritdoc />
-        public override bool Exists(string key)
+        public override Task<bool> Exists(string key)
         {
             NotNullOrWhiteSpace(key, nameof(key));
 
-            return _cache.ContainsKey(key);
+            return Task.FromResult(_cache.ContainsKey(key));
         }
 
         /// <inheritdoc />
-        public override bool Exists(string key, string region)
+        public override Task<bool> Exists(string key, string region)
         {
             NotNullOrWhiteSpace(region, nameof(region));
             var fullKey = GetKey(key, region);
-            return _cache.ContainsKey(fullKey);
+            return Task.FromResult(_cache.ContainsKey(fullKey));
         }
 
         /// <summary>
@@ -117,13 +119,13 @@ namespace CacheManager.Core.Internal
         /// <c>true</c> if the key was not already added to the cache, <c>false</c> otherwise.
         /// </returns>
         /// <exception cref="System.ArgumentNullException">If item is null.</exception>
-        protected override bool AddInternalPrepared(CacheItem<TCacheValue> item)
+        protected override Task<bool> AddInternalPrepared(CacheItem<TCacheValue> item)
         {
             NotNull(item, nameof(item));
 
             var key = GetKey(item.Key, item.Region);
 
-            return _cache.TryAdd(key, item);
+            return Task.FromResult(_cache.TryAdd(key, item));
         }
 
         /// <summary>
@@ -131,8 +133,8 @@ namespace CacheManager.Core.Internal
         /// </summary>
         /// <param name="key">The key being used to identify the item within the cache.</param>
         /// <returns>The <c>CacheItem</c>.</returns>
-        protected override CacheItem<TCacheValue> GetCacheItemInternal(string key) =>
-            GetCacheItemInternal(key, null);
+        protected override async Task<CacheItem<TCacheValue>> GetCacheItemInternal(string key) =>
+            await GetCacheItemInternal(key, null);
 
         /// <summary>
         /// Gets a <c>CacheItem</c> for the specified key.
@@ -140,7 +142,7 @@ namespace CacheManager.Core.Internal
         /// <param name="key">The key being used to identify the item within the cache.</param>
         /// <param name="region">The cache region.</param>
         /// <returns>The <c>CacheItem</c>.</returns>
-        protected override CacheItem<TCacheValue> GetCacheItemInternal(string key, string region)
+        protected override Task<CacheItem<TCacheValue>> GetCacheItemInternal(string key, string region)
         {
             var fullKey = GetKey(key, region);
 
@@ -154,7 +156,7 @@ namespace CacheManager.Core.Internal
                 }
             }
 
-            return result;
+            return Task.FromResult(result);
         }
 
         /// <summary>
@@ -163,11 +165,12 @@ namespace CacheManager.Core.Internal
         /// </summary>
         /// <param name="item">The <c>CacheItem</c> to be added to the cache.</param>
         /// <exception cref="System.ArgumentNullException">If item is null.</exception>
-        protected override void PutInternalPrepared(CacheItem<TCacheValue> item)
+        protected override Task PutInternalPrepared(CacheItem<TCacheValue> item)
         {
             NotNull(item, nameof(item));
 
             _cache[GetKey(item.Key, item.Region)] = item;
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -177,7 +180,7 @@ namespace CacheManager.Core.Internal
         /// <returns>
         /// <c>true</c> if the key was found and removed from the cache, <c>false</c> otherwise.
         /// </returns>
-        protected override bool RemoveInternal(string key) => RemoveInternal(key, null);
+        protected override Task<bool> RemoveInternal(string key) => RemoveInternal(key, null);
 
         /// <summary>
         /// Removes a value from the cache for the specified key.
@@ -187,10 +190,10 @@ namespace CacheManager.Core.Internal
         /// <returns>
         /// <c>true</c> if the key was found and removed from the cache, <c>false</c> otherwise.
         /// </returns>
-        protected override bool RemoveInternal(string key, string region)
+        protected override Task<bool> RemoveInternal(string key, string region)
         {
             var fullKey = GetKey(key, region);
-            return _cache.TryRemove(fullKey, out CacheItem<TCacheValue> val);
+            return Task.FromResult( _cache.TryRemove(fullKey, out CacheItem<TCacheValue> val));
         }
 
         /// <summary>

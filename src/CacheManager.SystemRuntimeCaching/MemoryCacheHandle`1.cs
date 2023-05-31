@@ -2,6 +2,7 @@
 using System.Collections.Specialized;
 using System.Globalization;
 using System.Runtime.Caching;
+using System.Threading.Tasks;
 using CacheManager.Core;
 using CacheManager.Core.Internal;
 using CacheManager.Core.Logging;
@@ -91,31 +92,35 @@ namespace CacheManager.SystemRuntimeCaching
         /// <summary>
         /// Clears this cache, removing all items in the base cache and all regions.
         /// </summary>
-        public override void Clear()
+        public override Task Clear()
         {
             _cache.Remove(_instanceKey);
             CreateInstanceToken();
+            return Task.CompletedTask;
         }
 
         /// <summary>
         /// Clears the cache region, removing all items from the specified <paramref name="region"/> only.
         /// </summary>
         /// <param name="region">The cache region.</param>
-        public override void ClearRegion(string region) =>
-            _cache.Remove(GetRegionTokenKey(region));
-
-        /// <inheritdoc />
-        public override bool Exists(string key)
+        public override Task ClearRegion(string region)
         {
-            return _cache.Contains(GetItemKey(key));
+            _cache.Remove(GetRegionTokenKey(region));
+            return Task.CompletedTask;
         }
 
         /// <inheritdoc />
-        public override bool Exists(string key, string region)
+        public override Task<bool> Exists(string key)
+        {
+            return Task.FromResult(_cache.Contains(GetItemKey(key)));
+        }
+
+        /// <inheritdoc />
+        public override Task<bool> Exists(string key, string region)
         {
             NotNullOrWhiteSpace(region, nameof(region));
             var fullKey = GetItemKey(key, region);
-            return _cache.Contains(fullKey);
+            return Task.FromResult(_cache.Contains(fullKey));
         }
 
         /// <summary>
@@ -125,17 +130,17 @@ namespace CacheManager.SystemRuntimeCaching
         /// <returns>
         /// <c>true</c> if the key was not already added to the cache, <c>false</c> otherwise.
         /// </returns>
-        protected override bool AddInternalPrepared(CacheItem<TCacheValue> item)
+        protected override Task<bool> AddInternalPrepared(CacheItem<TCacheValue> item)
         {
             var key = GetItemKey(item);
 
             if (_cache.Contains(key))
             {
-                return false;
+                return Task.FromResult(false);
             }
 
             var policy = GetPolicy(item);
-            return _cache.Add(key, item, policy);
+            return Task.FromResult(_cache.Add(key, item, policy));
         }
 
         /// <summary>
@@ -143,7 +148,7 @@ namespace CacheManager.SystemRuntimeCaching
         /// </summary>
         /// <param name="key">The key being used to identify the item within the cache.</param>
         /// <returns>The <c>CacheItem</c>.</returns>
-        protected override CacheItem<TCacheValue> GetCacheItemInternal(string key) => GetCacheItemInternal(key, null);
+        protected override Task<CacheItem<TCacheValue>> GetCacheItemInternal(string key) => GetCacheItemInternal(key, null);
 
         /// <summary>
         /// Gets a <c>CacheItem</c> for the specified key.
@@ -151,14 +156,14 @@ namespace CacheManager.SystemRuntimeCaching
         /// <param name="key">The key being used to identify the item within the cache.</param>
         /// <param name="region">The cache region.</param>
         /// <returns>The <c>CacheItem</c>.</returns>
-        protected override CacheItem<TCacheValue> GetCacheItemInternal(string key, string region)
+        protected override Task<CacheItem<TCacheValue>> GetCacheItemInternal(string key, string region)
         {
             var fullKey = GetItemKey(key, region);
             var item = _cache.Get(fullKey) as CacheItem<TCacheValue>;
 
             if (item == null)
             {
-                return null;
+                return Task.FromResult(item);
             }
 
             // maybe the item is already expired because MemoryCache implements a default interval
@@ -169,7 +174,7 @@ namespace CacheManager.SystemRuntimeCaching
             {
                 RemoveInternal(item.Key, item.Region);
                 TriggerCacheSpecificRemove(item.Key, item.Region, CacheItemRemovedReason.Expired, item.Value);
-                return null;
+                return Task.FromResult(item);
             }
 
             if (item.ExpirationMode == ExpirationMode.Sliding)
@@ -180,7 +185,7 @@ namespace CacheManager.SystemRuntimeCaching
                 _cache.Set(fullKey, item, GetPolicy(item));
             }
 
-            return item;
+            return Task.FromResult(item);
         }
 
         /// <summary>
@@ -188,11 +193,12 @@ namespace CacheManager.SystemRuntimeCaching
         /// with the new value. If the item doesn't exist, the item will be added to the cache.
         /// </summary>
         /// <param name="item">The <c>CacheItem</c> to be added to the cache.</param>
-        protected override void PutInternalPrepared(CacheItem<TCacheValue> item)
+        protected override Task PutInternalPrepared(CacheItem<TCacheValue> item)
         {
             var key = GetItemKey(item);
             var policy = GetPolicy(item);
             _cache.Set(key, item, policy);
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -202,7 +208,7 @@ namespace CacheManager.SystemRuntimeCaching
         /// <returns>
         /// <c>true</c> if the key was found and removed from the cache, <c>false</c> otherwise.
         /// </returns>
-        protected override bool RemoveInternal(string key) => RemoveInternal(key, null);
+        protected override Task<bool> RemoveInternal(string key) => RemoveInternal(key, null);
 
         /// <summary>
         /// Removes a value from the cache for the specified key.
@@ -212,12 +218,12 @@ namespace CacheManager.SystemRuntimeCaching
         /// <returns>
         /// <c>true</c> if the key was found and removed from the cache, <c>false</c> otherwise.
         /// </returns>
-        protected override bool RemoveInternal(string key, string region)
+        protected override Task<bool> RemoveInternal(string key, string region)
         {
             var fullKey = GetItemKey(key, region);
             var obj = _cache.Remove(fullKey);
 
-            return obj != null;
+            return Task.FromResult(obj != null);
         }
 
         private static NameValueCollection GetSettings(MemoryCache instance)

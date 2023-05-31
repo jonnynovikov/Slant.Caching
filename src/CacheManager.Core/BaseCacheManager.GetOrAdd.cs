@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Threading.Tasks;
 using static CacheManager.Core.Utility.Guard;
 
 namespace CacheManager.Core
@@ -7,130 +8,126 @@ namespace CacheManager.Core
     public partial class BaseCacheManager<TCacheValue>
     {
         /// <inheritdoc />
-        public TCacheValue GetOrAdd(string key, TCacheValue value)
-            => GetOrAdd(key, (k) => value);
+        public async Task<TCacheValue> GetOrAdd(string key, TCacheValue value)
+            => await GetOrAdd(key, (k) => value);
 
         /// <inheritdoc />
-        public TCacheValue GetOrAdd(string key, string region, TCacheValue value)
-            => GetOrAdd(key, region, (k, r) => value);
+        public async Task<TCacheValue> GetOrAdd(string key, string region, TCacheValue value)
+            => await GetOrAdd(key, region, (k, r) => value);
 
         /// <inheritdoc />
-        public TCacheValue GetOrAdd(string key, Func<string, TCacheValue> valueFactory)
+        public async Task<TCacheValue> GetOrAdd(string key, Func<string, TCacheValue> valueFactory)
         {
             NotNullOrWhiteSpace(key, nameof(key));
             NotNull(valueFactory, nameof(valueFactory));
 
-            return GetOrAddInternal(key, null, (k, r) => new CacheItem<TCacheValue>(k, valueFactory(k))).Value;
+            return (await GetOrAddInternal(key, null, (k, r) => new CacheItem<TCacheValue>(k, valueFactory(k)))).Value;
         }
 
         /// <inheritdoc />
-        public TCacheValue GetOrAdd(string key, string region, Func<string, string, TCacheValue> valueFactory)
+        public async Task<TCacheValue> GetOrAdd(string key, string region, Func<string, string, TCacheValue> valueFactory)
         {
             NotNullOrWhiteSpace(key, nameof(key));
             NotNullOrWhiteSpace(region, nameof(region));
             NotNull(valueFactory, nameof(valueFactory));
 
-            return GetOrAddInternal(key, region, (k, r) => new CacheItem<TCacheValue>(k, r, valueFactory(k, r))).Value;
+            return (await GetOrAddInternal(key, region, (k, r) => new CacheItem<TCacheValue>(k, r, valueFactory(k, r)))).Value;
         }
 
         /// <inheritdoc />
-        public CacheItem<TCacheValue> GetOrAdd(string key, Func<string, CacheItem<TCacheValue>> valueFactory)
+        public async Task<CacheItem<TCacheValue>> GetOrAdd(string key, Func<string, CacheItem<TCacheValue>> valueFactory)
         {
             NotNullOrWhiteSpace(key, nameof(key));
             NotNull(valueFactory, nameof(valueFactory));
 
-            return GetOrAddInternal(key, null, (k, r) => valueFactory(k));
+            return await GetOrAddInternal(key, null, (k, r) => valueFactory(k));
         }
 
         /// <inheritdoc />
-        public CacheItem<TCacheValue> GetOrAdd(string key, string region, Func<string, string, CacheItem<TCacheValue>> valueFactory)
+        public async Task<CacheItem<TCacheValue>> GetOrAdd(string key, string region, Func<string, string, CacheItem<TCacheValue>> valueFactory)
         {
             NotNullOrWhiteSpace(key, nameof(key));
             NotNullOrWhiteSpace(region, nameof(region));
             NotNull(valueFactory, nameof(valueFactory));
 
-            return GetOrAddInternal(key, region, valueFactory);
+            return await GetOrAddInternal(key, region, valueFactory);
         }
 
         /// <inheritdoc />
-        public bool TryGetOrAdd(string key, Func<string, TCacheValue> valueFactory, out TCacheValue value)
+        public async Task<(bool Success, TCacheValue Item)> TryGetOrAdd(string key, Func<string, TCacheValue> valueFactory)
         {
             NotNullOrWhiteSpace(key, nameof(key));
             NotNull(valueFactory, nameof(valueFactory));
 
-            if (TryGetOrAddInternal(
+            var getOrAddResult = await TryGetOrAddInternal(
                 key,
                 null,
                 (k, r) =>
                 {
                     var newValue = valueFactory(k);
                     return newValue == null ? null : new CacheItem<TCacheValue>(k, newValue);
-                },
-                out var item))
-            {
-                value = item.Value;
-                return true;
-            }
+                });
 
-            value = default(TCacheValue);
-            return false;
+            if (getOrAddResult.Success)
+                return (getOrAddResult.Success, getOrAddResult.Item.Value);
+
+            return (false, default(TCacheValue));
+
         }
 
         /// <inheritdoc />
-        public bool TryGetOrAdd(string key, string region, Func<string, string, TCacheValue> valueFactory, out TCacheValue value)
+        public async Task<(bool Success, TCacheValue Item)> TryGetOrAdd(string key, string region, Func<string, string, TCacheValue> valueFactory)
         {
             NotNullOrWhiteSpace(key, nameof(key));
             NotNullOrWhiteSpace(region, nameof(region));
             NotNull(valueFactory, nameof(valueFactory));
 
-            if (TryGetOrAddInternal(
+            var getOrAddResult = await TryGetOrAddInternal(
                 key,
                 region,
                 (k, r) =>
                 {
                     var newValue = valueFactory(k, r);
                     return newValue == null ? null : new CacheItem<TCacheValue>(k, r, newValue);
-                },
-                out var item))
-            {
-                value = item.Value;
-                return true;
-            }
+                });
 
-            value = default(TCacheValue);
-            return false;
+            if (getOrAddResult.Success)
+                return (getOrAddResult.Success, getOrAddResult.Item.Value);
+            
+            return (false, default(TCacheValue));
         }
 
         /// <inheritdoc />
-        public bool TryGetOrAdd(string key, Func<string, CacheItem<TCacheValue>> valueFactory, out CacheItem<TCacheValue> item)
+        public async Task<(bool Success, CacheItem<TCacheValue> Item)> TryGetOrAdd(string key, Func<string, CacheItem<TCacheValue>> valueFactory)
         {
             NotNullOrWhiteSpace(key, nameof(key));
             NotNull(valueFactory, nameof(valueFactory));
 
-            return TryGetOrAddInternal(key, null, (k, r) => valueFactory(k), out item);
+            return await TryGetOrAddInternal(key, null, (k, r) => valueFactory(k));
         }
 
         /// <inheritdoc />
-        public bool TryGetOrAdd(string key, string region, Func<string, string, CacheItem<TCacheValue>> valueFactory, out CacheItem<TCacheValue> item)
+        public async Task<(bool Success, CacheItem<TCacheValue> Item)> TryGetOrAdd(string key, string region, Func<string, string, CacheItem<TCacheValue>> valueFactory)
         {
             NotNullOrWhiteSpace(key, nameof(key));
             NotNullOrWhiteSpace(region, nameof(region));
             NotNull(valueFactory, nameof(valueFactory));
 
-            return TryGetOrAddInternal(key, region, valueFactory, out item);
+            return await TryGetOrAddInternal(key, region, valueFactory);
         }
 
-        private bool TryGetOrAddInternal(string key, string region, Func<string, string, CacheItem<TCacheValue>> valueFactory, out CacheItem<TCacheValue> item)
+        private async Task<(bool Success, CacheItem<TCacheValue> Item)> TryGetOrAddInternal(string key, string region, Func<string, string, CacheItem<TCacheValue>> valueFactory)
         {
+            CacheItem<TCacheValue> item = null;
             CacheItem<TCacheValue> newItem = null;
             var tries = 0;
             do
             {
                 tries++;
-                item = GetCacheItemInternal(key, region);
+                item = await GetCacheItemInternal(key, region);
                 if (item != null)
                 {
-                    return true;
+                    return (true, item);
                 }
 
                 // changed logic to invoke the factory only once in case of retries
@@ -141,28 +138,28 @@ namespace CacheManager.Core
 
                 if (newItem == null)
                 {
-                    return false;
+                    return (false, item);
                 }
 
-                if (AddInternal(newItem))
+                if (await AddInternal(newItem))
                 {
                     item = newItem;
-                    return true;
+                    return (true, item);
                 }
             }
             while (tries <= Configuration.MaxRetries);
 
-            return false;
+            return (false, item);
         }
 
-        private CacheItem<TCacheValue> GetOrAddInternal(string key, string region, Func<string, string, CacheItem<TCacheValue>> valueFactory)
+        private async Task<CacheItem<TCacheValue>> GetOrAddInternal(string key, string region, Func<string, string, CacheItem<TCacheValue>> valueFactory)
         {
             CacheItem<TCacheValue> newItem = null;
             var tries = 0;
             do
             {
                 tries++;
-                var item = GetCacheItemInternal(key, region);
+                var item = await GetCacheItemInternal(key, region);
                 if (item != null)
                 {
                     return item;
@@ -180,7 +177,7 @@ namespace CacheManager.Core
                     throw new InvalidOperationException("The CacheItem which should be added must not be null.");
                 }
 
-                if (AddInternal(newItem))
+                if (await AddInternal(newItem))
                 {
                     return newItem;
                 }

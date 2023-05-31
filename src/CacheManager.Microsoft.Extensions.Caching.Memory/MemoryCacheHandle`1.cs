@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Threading.Tasks;
 using CacheManager.Core;
 using CacheManager.Core.Internal;
 using CacheManager.Core.Logging;
@@ -61,40 +62,42 @@ namespace CacheManager.MicrosoftCachingMemory
         internal MemoryCacheOptions MemoryCacheOptions { get; }
 
         /// <inheritdoc/>
-        public override void Clear()
+        public override Task Clear()
         {
             _cache = new MemoryCache(MemoryCacheOptions);
+            return Task.CompletedTask;
         }
 
         /// <inheritdoc/>
-        public override void ClearRegion(string region)
+        public override Task ClearRegion(string region)
         {
             _cache.RemoveChilds(region);
             _cache.Remove(region);
+            return Task.CompletedTask;
         }
 
         /// <inheritdoc />
-        public override bool Exists(string key)
+        public override Task<bool> Exists(string key)
         {
-            return _cache.Contains(GetItemKey(key));
+            return Task.FromResult(_cache.Contains(GetItemKey(key)));
         }
 
         /// <inheritdoc />
-        public override bool Exists(string key, string region)
+        public override Task<bool> Exists(string key, string region)
         {
             NotNullOrWhiteSpace(region, nameof(region));
 
-            return _cache.Contains(GetItemKey(key, region));
+            return Task.FromResult(_cache.Contains(GetItemKey(key, region)));
         }
 
         /// <inheritdoc/>
-        protected override CacheItem<TCacheValue> GetCacheItemInternal(string key)
+        protected override Task<CacheItem<TCacheValue>> GetCacheItemInternal(string key)
         {
             return GetCacheItemInternal(key, null);
         }
 
         /// <inheritdoc/>
-        protected override CacheItem<TCacheValue> GetCacheItemInternal(string key, string region)
+        protected override Task<CacheItem<TCacheValue>> GetCacheItemInternal(string key, string region)
         {
             var fullKey = GetItemKey(key, region);
             var item = _cache.Get(fullKey) as CacheItem<TCacheValue>;
@@ -117,17 +120,17 @@ namespace CacheManager.MicrosoftCachingMemory
                 _cache.Set(fullKey, item, GetOptions(item));
             }
 
-            return item;
+            return Task.FromResult(item);
         }
 
         /// <inheritdoc/>
-        protected override bool RemoveInternal(string key)
+        protected override Task<bool> RemoveInternal(string key)
         {
             return RemoveInternal(key, null);
         }
 
         /// <inheritdoc/>
-        protected override bool RemoveInternal(string key, string region)
+        protected override Task<bool> RemoveInternal(string key, string region)
         {
             var fullKey = GetItemKey(key, region);
             var result = _cache.Contains(fullKey);
@@ -136,17 +139,17 @@ namespace CacheManager.MicrosoftCachingMemory
                 _cache.Remove(fullKey);
             }
 
-            return result;
+            return Task.FromResult(result);
         }
 
         /// <inheritdoc/>
-        protected override bool AddInternalPrepared(CacheItem<TCacheValue> item)
+        protected override Task<bool> AddInternalPrepared(CacheItem<TCacheValue> item)
         {
             var key = GetItemKey(item);
 
             if (_cache.Contains(key))
             {
-                return false;
+                return Task.FromResult(false);
             }
 
             var options = GetOptions(item);
@@ -157,11 +160,11 @@ namespace CacheManager.MicrosoftCachingMemory
                 _cache.RegisterChild(item.Region, key);
             }
 
-            return true;
+            return Task.FromResult(true);
         }
 
         /// <inheritdoc/>
-        protected override void PutInternalPrepared(CacheItem<TCacheValue> item)
+        protected override Task PutInternalPrepared(CacheItem<TCacheValue> item)
         {
             var key = GetItemKey(item);
 
@@ -172,6 +175,7 @@ namespace CacheManager.MicrosoftCachingMemory
             {
                 _cache.RegisterChild(item.Region, key);
             }
+            return Task.CompletedTask;
         }
 
         private string GetItemKey(CacheItem<TCacheValue> item) => GetItemKey(item?.Key, item?.Region);

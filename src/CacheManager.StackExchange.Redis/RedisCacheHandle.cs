@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using CacheManager.Core;
 using CacheManager.Core.Internal;
 using CacheManager.Core.Logging;
@@ -84,7 +86,7 @@ return result";
         // flag if scripts are initially loaded to the server
         private bool _scriptsLoaded = false;
 
-        private object _lockObject = new object();
+        static SemaphoreSlim semaphoreSlim = new SemaphoreSlim(1, 1);
 
         /// <summary>
         /// Initializes a new instance of the <see cref="RedisCacheHandle{TCacheValue}"/> class.
@@ -206,17 +208,17 @@ return result";
         /// <summary>
         /// Clears this cache, removing all items in the base cache and all regions.
         /// </summary>
-        public override void Clear()
+        public override async Task Clear()
         {
             try
             {
                 foreach (var server in Servers.Where(p => !p.IsReplica))
                 {
-                    Retry(() =>
+                    await Retry(async () =>
                     {
                         if (server.IsConnected)
                         {
-                            server.FlushDatabase(_redisConfiguration.Database);
+                            await server.FlushDatabaseAsync(_redisConfiguration.Database);
                         }
                     });
                 }
@@ -231,66 +233,68 @@ return result";
         /// Clears the cache region, removing all items from the specified <paramref name="region"/> only.
         /// </summary>
         /// <param name="region">The cache region.</param>
-        public override void ClearRegion(string region)
+        public override async Task ClearRegion(string region)
         {
-            Retry(() =>
+            await Retry(async () =>
             {
                 // we are storing all keys stored in the region in the hash for key=region
-                var hashKeys = _connection.Database.HashKeys(region);
-
+                var hashKeys = await _connection.Database.HashKeysAsync(region);
+                
                 if (hashKeys.Length > 0)
                 {
                     // lets remove all keys which where in the region
                     // 01/32/16 changed to remove one by one because on clusters the keys could belong to multiple slots
                     foreach (var key in hashKeys.Where(p => p.HasValue))
                     {
-                        _connection.Database.KeyDelete(key.ToString(), CommandFlags.FireAndForget);
+                       await _connection.Database.KeyDeleteAsync(key.ToString(), CommandFlags.FireAndForget);
                     }
                 }
 
                 // now delete the region
-                _connection.Database.KeyDelete(region);
+                await _connection.Database.KeyDeleteAsync(region);
             });
         }
 
         /// <inheritdoc />
-        public override bool Exists(string key)
+        public override async Task<bool> Exists(string key)
         {
             var fullKey = GetKey(key);
-            return Retry(() => _connection.Database.KeyExists(fullKey));
+            return await RetryAsync(async () => await _connection.Database.KeyExistsAsync(fullKey));
         }
 
         /// <inheritdoc />
-        public override bool Exists(string key, string region)
+        public override async Task<bool> Exists(string key, string region)
         {
             NotNullOrWhiteSpace(region, nameof(region));
 
             var fullKey = GetKey(key, region);
-            return Retry(() => _connection.Database.KeyExists(fullKey));
+            return await RetryAsync(async () => await _connection.Database.KeyExistsAsync(fullKey));
         }
 
         /// <inheritdoc />
-        public override UpdateItemResult<TCacheValue> Update(string key, Func<TCacheValue, TCacheValue> updateValue, int maxRetries)
-            => Update(key, null, updateValue, maxRetries);
+        public override async Task<UpdateItemResult<TCacheValue>> Update(string key, Func<TCacheValue, TCacheValue> updateValue, int maxRetries)
+            => await Update(key, null, updateValue, maxRetries);
 
         /// <inheritdoc />
-        public override UpdateItemResult<TCacheValue> Update(string key, string region, Func<TCacheValue, TCacheValue> updateValue, int maxRetries)
+        public override async Task<UpdateItemResult<TCacheValue>> Update(string key, string region, Func<TCacheValue, TCacheValue> updateValue, int maxRetries)
         {
             if (!_isLuaAllowed)
             {
-                return UpdateNoScript(key, region, updateValue, maxRetries);
+                return await UpdateNoScript(key, region, updateValue, maxRetries);
             }
 
             var tries = 0;
             var fullKey = GetKey(key, region);
 
-            return Retry(() =>
+            return await RetryAsync(async () =>
             {
                 do
                 {
                     tries++;
 
-                    var item = GetCacheItemAndVersion(key, region, out int version);
+                    var cacheTuple = await GetCacheItemAndVersion(key, region);
+                    var item = cacheTuple.Item1;
+                    var version = cacheTuple.Item2;
 
                     if (item == null)
                     {
@@ -309,7 +313,7 @@ return result";
                     }
 
                     // resetting TTL on update, too
-                    var result = Eval(ScriptType.Update, fullKey, new[]
+                    var result = await Eval(ScriptType.Update, fullKey, new[]
                     {
                         ToRedisValue(newValue),
                         version,
@@ -337,19 +341,19 @@ return result";
 #pragma warning disable SA1600
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 
-        protected UpdateItemResult<TCacheValue> UpdateNoScript(string key, string region, Func<TCacheValue, TCacheValue> updateValue, int maxRetries)
+        protected async Task<UpdateItemResult<TCacheValue>> UpdateNoScript(string key, string region, Func<TCacheValue, TCacheValue> updateValue, int maxRetries)
         {
             var committed = false;
             var tries = 0;
             var fullKey = GetKey(key, region);
 
-            return Retry(() =>
+            return await RetryAsync(async () =>
             {
                 do
                 {
                     tries++;
 
-                    var item = GetCacheItemInternal(key, region);
+                    var item = await GetCacheItemInternal(key, region);
 
                     if (item == null)
                     {
@@ -372,9 +376,9 @@ return result";
                         return UpdateItemResult.ForFactoryReturnedNull<TCacheValue>();
                     }
 
-                    tran.HashSetAsync(fullKey, HashFieldValue, ToRedisValue(newValue));
+                    await tran.HashSetAsync(fullKey, HashFieldValue, ToRedisValue(newValue));
 
-                    committed = tran.Execute();
+                    committed = await tran.ExecuteAsync();
 
                     if (committed)
                     {
@@ -383,7 +387,7 @@ return result";
 
                         if (newItem.ExpirationMode == ExpirationMode.Sliding && newItem.ExpirationTimeout != TimeSpan.Zero)
                         {
-                            _connection.Database.KeyExpire(fullKey, newItem.ExpirationTimeout, CommandFlags.FireAndForget);
+                            await _connection.Database.KeyExpireAsync(fullKey, newItem.ExpirationTimeout, CommandFlags.FireAndForget);
                         }
 
                         return UpdateItemResult.ForSuccess(newItem, tries > 1, tries);
@@ -412,8 +416,8 @@ return result";
         /// <returns>
         /// <c>true</c> if the key was not already added to the cache, <c>false</c> otherwise.
         /// </returns>
-        protected override bool AddInternalPrepared(CacheItem<TCacheValue> item) =>
-            Retry(() => Set(item, When.NotExists, true));
+        protected override async Task<bool> AddInternalPrepared(CacheItem<TCacheValue> item) =>
+           await RetryAsync(async () => await Set(item, When.NotExists, true));
 
         /// <summary>
         /// Performs application-defined tasks associated with freeing, releasing, or resetting
@@ -434,8 +438,8 @@ return result";
         /// </summary>
         /// <param name="key">The key being used to identify the item within the cache.</param>
         /// <returns>The <c>CacheItem</c>.</returns>
-        protected override CacheItem<TCacheValue> GetCacheItemInternal(string key)
-            => GetCacheItemInternal(key, null);
+        protected override async Task<CacheItem<TCacheValue>> GetCacheItemInternal(string key)
+            => await GetCacheItemInternal(key, null);
 
         /// <summary>
         /// Gets a <c>CacheItem</c> for the specified key.
@@ -443,22 +447,23 @@ return result";
         /// <param name="key">The key being used to identify the item within the cache.</param>
         /// <param name="region">The cache region.</param>
         /// <returns>The <c>CacheItem</c>.</returns>
-        protected override CacheItem<TCacheValue> GetCacheItemInternal(string key, string region)
+        protected override async Task<CacheItem<TCacheValue>> GetCacheItemInternal(string key, string region)
         {
-            return GetCacheItemAndVersion(key, region, out int version);
+            return (await GetCacheItemAndVersion(key, region)).Item1;
         }
 
-        private CacheItem<TCacheValue> GetCacheItemAndVersion(string key, string region, out int version)
+        private async Task<Tuple<CacheItem<TCacheValue>, int>> GetCacheItemAndVersion(string key, string region)
         {
-            version = -1;
+            int version = -1;
             if (!_isLuaAllowed)
             {
-                return GetCacheItemInternalNoScript(key, region);
+                var noScriptItem = await GetCacheItemInternalNoScript(key, region);
+                return new Tuple<CacheItem<TCacheValue>, int>(noScriptItem, version);
             }
 
             var fullKey = GetKey(key, region);
 
-            var result = Retry(() => Eval(ScriptType.Get, fullKey));
+            var result = await RetryAsync(async () => await Eval(ScriptType.Get, fullKey));
             if (result == null || result.IsNull)
             {
                 // something went wrong. HMGET should return at least a null result for each requested field
@@ -521,24 +526,24 @@ return result";
             {
                 TriggerCacheSpecificRemove(key, region, CacheItemRemovedReason.Expired, cacheItem.Value);
 
-                return null;
+                return new Tuple<CacheItem<TCacheValue>, int>(null, version);
             }
 
-            return cacheItem;
+            return new Tuple<CacheItem<TCacheValue>, int>(cacheItem, version);
         }
 
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 #pragma warning disable SA1600
 
-        protected CacheItem<TCacheValue> GetCacheItemInternalNoScript(string key, string region)
+        protected async Task<CacheItem<TCacheValue>> GetCacheItemInternalNoScript(string key, string region)
         {
-            return Retry(() =>
+            return await RetryAsync(async () =>
             {
                 var fullKey = GetKey(key, region);
 
                 // getting both, the value and, if exists, the expiration mode. if that one is set
                 // and it is sliding, we also retrieve the timeout later
-                var values = _connection.Database.HashGet(
+                var values = await _connection.Database.HashGetAsync(
                     fullKey,
                     new RedisValue[]
                     {
@@ -610,7 +615,7 @@ return result";
                 // update sliding
                 if (expirationMode == ExpirationMode.Sliding && expirationTimeout != default(TimeSpan))
                 {
-                    _connection.Database.KeyExpire(fullKey, cacheItem.ExpirationTimeout, CommandFlags.FireAndForget);
+                    await _connection.Database.KeyExpireAsync(fullKey, cacheItem.ExpirationTimeout, CommandFlags.FireAndForget);
                 }
 
                 return cacheItem;
@@ -625,7 +630,7 @@ return result";
         /// with the new value. If the item doesn't exist, the item will be added to the cache.
         /// </summary>
         /// <param name="item">The <c>CacheItem</c> to be added to the cache.</param>
-        protected override void PutInternal(CacheItem<TCacheValue> item)
+        protected override Task PutInternal(CacheItem<TCacheValue> item)
             => base.PutInternal(item);
 
         /// <summary>
@@ -633,8 +638,8 @@ return result";
         /// with the new value. If the item doesn't exist, the item will be added to the cache.
         /// </summary>
         /// <param name="item">The <c>CacheItem</c> to be added to the cache.</param>
-        protected override void PutInternalPrepared(CacheItem<TCacheValue> item) =>
-            Retry(() => Set(item, When.Always, true));
+        protected override async Task PutInternalPrepared(CacheItem<TCacheValue> item) =>
+            await RetryAsync(async () => await Set(item, When.Always, true));
 
         /// <summary>
         /// Removes a value from the cache for the specified key.
@@ -643,7 +648,7 @@ return result";
         /// <returns>
         /// <c>true</c> if the key was found and removed from the cache, <c>false</c> otherwise.
         /// </returns>
-        protected override bool RemoveInternal(string key) => RemoveInternal(key, null);
+        protected override async Task<bool> RemoveInternal(string key) => await RemoveInternal(key, null);
 
 #pragma warning disable CSE0003
 
@@ -655,20 +660,20 @@ return result";
         /// <returns>
         /// <c>true</c> if the key was found and removed from the cache, <c>false</c> otherwise.
         /// </returns>
-        protected override bool RemoveInternal(string key, string region)
+        protected override async Task<bool> RemoveInternal(string key, string region)
         {
-            return Retry(() =>
+            return await RetryAsync(async () =>
             {
                 var fullKey = GetKey(key, region);
 
                 // clean up region
                 if (!string.IsNullOrWhiteSpace(region))
                 {
-                    _connection.Database.HashDelete(region, fullKey, CommandFlags.FireAndForget);
+                    await _connection.Database.HashDeleteAsync(region, fullKey, CommandFlags.FireAndForget);
                 }
 
                 // remove key
-                var result = _connection.Database.KeyDelete(fullKey);
+                var result = await _connection.Database.KeyDeleteAsync(fullKey);
 
                 return result;
             });
@@ -818,22 +823,22 @@ return result";
             return _valueConverter.ToRedisValue(value);
         }
 
-        private T Retry<T>(Func<T> retryme) =>
-            RetryHelper.Retry(retryme, _managerConfiguration.RetryTimeout, _managerConfiguration.MaxRetries, Logger);
+        private async Task<T> RetryAsync<T>(Func<Task<T>> retryme) =>
+           await RetryHelper.RetryAsync(retryme, _managerConfiguration.RetryTimeout, _managerConfiguration.MaxRetries, Logger);
 
-        private void Retry(Action retryme)
-            => Retry(
-                () =>
+        private async Task Retry(Func<Task> retryme)
+            => await RetryAsync(
+                async () =>
                 {
-                    retryme();
+                    await retryme();
                     return true;
                 });
 
-        private bool Set(CacheItem<TCacheValue> item, When when, bool sync = false)
+        private async Task<bool> Set(CacheItem<TCacheValue> item, When when, bool sync = false)
         {
             if (!_isLuaAllowed)
             {
-                return SetNoScript(item, when, sync);
+                return await SetNoScript(item, when, sync);
             }
 
             var fullKey = GetKey(item.Key, item.Region);
@@ -857,11 +862,11 @@ return result";
             RedisResult result;
             if (when == When.NotExists)
             {
-                result = Eval(ScriptType.Add, fullKey, parameters, flags);
+                result = await Eval(ScriptType.Add, fullKey, parameters, flags);
             }
             else
             {
-                result = Eval(ScriptType.Put, fullKey, parameters, flags);
+                result = await Eval(ScriptType.Put, fullKey, parameters, flags);
             }
 
             if (result == null)
@@ -871,7 +876,7 @@ return result";
                     if (!string.IsNullOrWhiteSpace(item.Region))
                     {
                         // setting region lookup key if region is being used
-                        _connection.Database.HashSet(item.Region, fullKey, "regionKey", When.Always, CommandFlags.FireAndForget);
+                        await _connection.Database.HashSetAsync(item.Region, fullKey, "regionKey", When.Always, CommandFlags.FireAndForget);
                     }
 
                     // put runs via fire and forget, so we don't get a result back
@@ -903,7 +908,7 @@ return result";
                     {
                         // setting region lookup key if region is being used
                         // we cannot do that within the lua because the region could be on another cluster node!
-                        _connection.Database.HashSet(item.Region, fullKey, "regionKey", When.Always, CommandFlags.FireAndForget);
+                        await _connection.Database.HashSetAsync(item.Region, fullKey, "regionKey", When.Always, CommandFlags.FireAndForget);
                     }
 
                     return true;
@@ -914,9 +919,9 @@ return result";
             }
         }
 
-        private bool SetNoScript(CacheItem<TCacheValue> item, When when, bool sync = false)
+        private async Task<bool> SetNoScript(CacheItem<TCacheValue> item, When when, bool sync = false)
         {
-            return Retry(() =>
+            return await RetryAsync(async () =>
             {
                 var fullKey = GetKey(item.Key, item.Region);
                 var value = ToRedisValue(item.Value);
@@ -934,7 +939,7 @@ return result";
 
                 var flags = sync ? CommandFlags.None : CommandFlags.FireAndForget;
 
-                var setResult = _connection.Database.HashSet(fullKey, HashFieldValue, value, when, flags);
+                var setResult = await _connection.Database.HashSetAsync(fullKey, HashFieldValue, value, when, flags);
 
                 // setResult from fire and forget is alwys false, so we have to assume it works...
                 setResult = flags == CommandFlags.FireAndForget ? true : setResult;
@@ -944,7 +949,7 @@ return result";
                     if (!string.IsNullOrWhiteSpace(item.Region))
                     {
                         // setting region lookup key if region is being used
-                        _connection.Database.HashSet(item.Region, fullKey, "regionKey", When.Always, CommandFlags.FireAndForget);
+                        await _connection.Database.HashSetAsync(item.Region, fullKey, "regionKey", When.Always, CommandFlags.FireAndForget);
                     }
 
                     // set the additional fields in case sliding expiration should be used in this
@@ -952,17 +957,17 @@ return result";
                     // that we can extend the expiration period every time we do a get
                     if (metaValues != null)
                     {
-                        _connection.Database.HashSet(fullKey, metaValues, flags);
+                        await _connection.Database.HashSetAsync(fullKey, metaValues, flags);
                     }
 
                     if (item.ExpirationMode != ExpirationMode.None && item.ExpirationMode != ExpirationMode.Default)
                     {
-                        _connection.Database.KeyExpire(fullKey, item.ExpirationTimeout, CommandFlags.FireAndForget);
+                        await _connection.Database.KeyExpireAsync(fullKey, item.ExpirationTimeout, CommandFlags.FireAndForget);
                     }
                     else
                     {
                         // bugfix #9
-                        _connection.Database.KeyPersist(fullKey, CommandFlags.FireAndForget);
+                        await _connection.Database.KeyPersistAsync(fullKey, CommandFlags.FireAndForget);
                     }
                 }
 
@@ -970,18 +975,24 @@ return result";
             });
         }
 
-        private RedisResult Eval(ScriptType scriptType, RedisKey redisKey, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
+        private async Task<RedisResult> Eval(ScriptType scriptType, RedisKey redisKey, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
         {
             if (!_scriptsLoaded)
             {
-                lock (_lockObject)
+                await semaphoreSlim.WaitAsync();
+                try
                 {
                     if (!_scriptsLoaded)
                     {
-                        LoadScripts();
+                        await LoadScripts();
                         _scriptsLoaded = true;
                     }
                 }
+                finally
+                {
+                    semaphoreSlim.Release();
+                }
+
             }
 
             LoadedLuaScript script = null;
@@ -997,27 +1008,29 @@ return result";
             {
                 if (_canPreloadScripts && script != null)
                 {
-                    return _connection.Database.ScriptEvaluate(script.Hash, new[] { redisKey }, values, flags);
+                    return await _connection.Database.ScriptEvaluateAsync(script.Hash, new[] { redisKey }, values, flags);
                 }
                 else
                 {
-                    return _connection.Database.ScriptEvaluate(luaScript.ExecutableScript, new[] { redisKey }, values, flags);
+                    return await _connection.Database.ScriptEvaluateAsync(luaScript.ExecutableScript, new[] { redisKey }, values, flags);
                 }
             }
             catch (RedisServerException ex) when (ex.Message.StartsWith("NOSCRIPT", StringComparison.OrdinalIgnoreCase))
             {
                 Logger.LogInfo("Received NOSCRIPT from server. Reloading scripts...");
-                LoadScripts();
+                await LoadScripts();
 
                 // retry
                 throw;
             }
         }
 
-        private void LoadScripts()
+        private async Task LoadScripts()
         {
-            lock (_lockObject)
+            await semaphoreSlim.WaitAsync();
+            try
             {
+
                 Logger.LogInfo("Loading scripts.");
 
                 var putLua = LuaScript.Prepare(_scriptPut);
@@ -1039,10 +1052,10 @@ return result";
                         {
                             if (server.IsConnected)
                             {
-                                _shaScripts[ScriptType.Put] = putLua.Load(server);
-                                _shaScripts[ScriptType.Add] = addLua.Load(server);
-                                _shaScripts[ScriptType.Update] = updateLua.Load(server);
-                                _shaScripts[ScriptType.Get] = getLua.Load(server);
+                                _shaScripts[ScriptType.Put] = await putLua.LoadAsync(server);
+                                _shaScripts[ScriptType.Add] = await addLua.LoadAsync(server);
+                                _shaScripts[ScriptType.Update] = await updateLua.LoadAsync(server);
+                                _shaScripts[ScriptType.Get] = await getLua.LoadAsync(server);
                             }
                         }
                     }
@@ -1051,6 +1064,11 @@ return result";
                         _canPreloadScripts = false;
                     }
                 }
+
+            }
+            finally
+            {
+                semaphoreSlim.Release();
             }
         }
     }
