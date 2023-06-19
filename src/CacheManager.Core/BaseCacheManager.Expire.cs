@@ -9,17 +9,17 @@ namespace CacheManager.Core
     {
         /// <inheritdoc />
         public async Task Expire(string key, ExpirationMode mode, TimeSpan timeout)
-            => await ExpireInternal(key, null, mode, timeout);
+            => await ExpireInternal(key, null, mode, timeout).ConfigureAwait(false);
 
         /// <inheritdoc />
         public async Task Expire(string key, string region, ExpirationMode mode, TimeSpan timeout)
-            => await ExpireInternal(key, region, mode, timeout);
+            => await ExpireInternal(key, region, mode, timeout).ConfigureAwait(false);
 
         private async Task ExpireInternal(string key, string region, ExpirationMode mode, TimeSpan timeout)
         {
             CheckDisposed();
 
-            var item = await GetCacheItemInternal(key, region);
+            var item = await GetCacheItemInternal(key, region).ConfigureAwait(false);
             if (item == null)
             {
                 Logger.LogTrace("Expire: item not found for key {0}:{1}", key, region);
@@ -53,7 +53,7 @@ namespace CacheManager.Core
                 Logger.LogTrace("Expire - Expiration of [{0}] has been modified. Using put to store the item...", item);
             }
 
-            await PutInternal(item);
+            await PutInternal(item).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
@@ -65,7 +65,7 @@ namespace CacheManager.Core
                 throw new ArgumentException("Expiration value must be greater than zero.", nameof(absoluteExpiration));
             }
 
-            await Expire(key, ExpirationMode.Absolute, timeout);
+            await Expire(key, ExpirationMode.Absolute, timeout).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
@@ -77,7 +77,7 @@ namespace CacheManager.Core
                 throw new ArgumentException("Expiration value must be greater than zero.", nameof(absoluteExpiration));
             }
 
-            await Expire(key, region, ExpirationMode.Absolute, timeout);
+            await Expire(key, region, ExpirationMode.Absolute, timeout).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
@@ -88,7 +88,7 @@ namespace CacheManager.Core
                 throw new ArgumentException("Expiration value must be greater than zero.", nameof(slidingExpiration));
             }
 
-            await Expire(key, ExpirationMode.Sliding, slidingExpiration);
+            await Expire(key, ExpirationMode.Sliding, slidingExpiration).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
@@ -99,19 +99,19 @@ namespace CacheManager.Core
                 throw new ArgumentException("Expiration value must be greater than zero.", nameof(slidingExpiration));
             }
 
-            await Expire(key, region, ExpirationMode.Sliding, slidingExpiration);
+            await Expire(key, region, ExpirationMode.Sliding, slidingExpiration).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
         public async Task RemoveExpiration(string key)
         {
-            await Expire(key, ExpirationMode.None, default(TimeSpan));
+            await Expire(key, ExpirationMode.None, default(TimeSpan)).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
         public async Task RemoveExpiration(string key, string region)
         {
-            await Expire(key, region, ExpirationMode.None, default(TimeSpan));
+            await Expire(key, region, ExpirationMode.None, default(TimeSpan)).ConfigureAwait(false);
         }
     }
 }

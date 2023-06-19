@@ -34,7 +34,8 @@ namespace CacheManager.Redis
         private readonly RedisConnectionManager _connection;
         private readonly Timer _timer;
         private HashSet<BackplaneMessage> _messages = new HashSet<BackplaneMessage>();
-        private object _messageLock = new object();
+        private readonly SemaphoreSlim semaphoreSlim = new SemaphoreSlim(1, 1);
+
         private int _skippedMessages = 0;
         private bool _sending = false;
         private CancellationTokenSource _source = new CancellationTokenSource();
@@ -60,7 +61,7 @@ namespace CacheManager.Redis
                 cfg,
                 loggerFactory);
 
-            RetryHelper.Retry(() => Subscribe(), configuration.RetryTimeout, configuration.MaxRetries, _logger);
+            RetryHelper.Retry(() => { Subscribe().GetAwaiter().GetResult(); return true; }, configuration.MaxRetries, _logger);
 
             // adding additional timer based send message invoke (shouldn't do anything if there are no messages,
             // but in really rare race conditions, it might happen messages do not get send if SendMEssages only get invoked through "NotifyXyz"
@@ -72,9 +73,9 @@ namespace CacheManager.Redis
         /// </summary>
         /// <param name="key">The key.</param>
         /// <param name="action">The cache action.</param>
-        public override void NotifyChange(string key, CacheItemChangedEventAction action)
+        public override async Task NotifyChange(string key, CacheItemChangedEventAction action)
         {
-            PublishMessage(BackplaneMessage.ForChanged(_identifier, key, action));
+            await PublishMessage(BackplaneMessage.ForChanged(_identifier, key, action)).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -83,35 +84,35 @@ namespace CacheManager.Redis
         /// <param name="key">The key.</param>
         /// <param name="region">The region.</param>
         /// <param name="action">The cache action.</param>
-        public override void NotifyChange(string key, string region, CacheItemChangedEventAction action)
+        public override async Task NotifyChange(string key, string region, CacheItemChangedEventAction action)
         {
-            PublishMessage(BackplaneMessage.ForChanged(_identifier, key, region, action));
+            await PublishMessage(BackplaneMessage.ForChanged(_identifier, key, region, action)).ConfigureAwait(false);
         }
 
         /// <summary>
         /// Notifies other cache clients about a cache clear.
         /// </summary>
-        public override void NotifyClear()
+        public override async Task NotifyClear()
         {
-            PublishMessage(BackplaneMessage.ForClear(_identifier));
+            await PublishMessage(BackplaneMessage.ForClear(_identifier)).ConfigureAwait(false);
         }
 
         /// <summary>
         /// Notifies other cache clients about a cache clear region call.
         /// </summary>
         /// <param name="region">The region.</param>
-        public override void NotifyClearRegion(string region)
+        public override async Task NotifyClearRegion(string region)
         {
-            PublishMessage(BackplaneMessage.ForClearRegion(_identifier, region));
+            await PublishMessage(BackplaneMessage.ForClearRegion(_identifier, region)).ConfigureAwait(false);
         }
 
         /// <summary>
         /// Notifies other cache clients about a removed cache key.
         /// </summary>
         /// <param name="key">The key.</param>
-        public override void NotifyRemove(string key)
+        public override async Task NotifyRemove(string key)
         {
-            PublishMessage(BackplaneMessage.ForRemoved(_identifier, key));
+            await PublishMessage(BackplaneMessage.ForRemoved(_identifier, key)).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -119,9 +120,9 @@ namespace CacheManager.Redis
         /// </summary>
         /// <param name="key">The key.</param>
         /// <param name="region">The region.</param>
-        public override void NotifyRemove(string key, string region)
+        public override async Task NotifyRemove(string key, string region)
         {
-            PublishMessage(BackplaneMessage.ForRemoved(_identifier, key, region));
+            await PublishMessage(BackplaneMessage.ForRemoved(_identifier, key, region)).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -149,14 +150,15 @@ namespace CacheManager.Redis
             base.Dispose(managed);
         }
 
-        private void Publish(byte[] message)
+        private async Task Publish(byte[] message)
         {
-            _connection.Subscriber.Publish(_channelName, message);
+            await _connection.Subscriber.PublishAsync(_channelName, message).ConfigureAwait(false);
         }
 
-        private void PublishMessage(BackplaneMessage message)
+        private async Task PublishMessage(BackplaneMessage message)
         {
-            lock (_messageLock)
+            await semaphoreSlim.WaitAsync();
+            try
             {
                 if (message.Action == BackplaneAction.Clear)
                 {
@@ -183,6 +185,10 @@ namespace CacheManager.Redis
 
                 SendMessages(null);
             }
+            finally
+            {
+                semaphoreSlim.Release();
+            }
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes", Justification = "No other way")]
@@ -206,11 +212,11 @@ namespace CacheManager.Redis
                     {
                         _logger.LogInfo($"Backplane is sending {_messages.Count} messages triggered by timer.");
                     }
-#if !NET40
-                    await Task.Delay(50).ConfigureAwait(false);
-#endif
+
+
                     byte[] msgs = null;
-                    lock (_messageLock)
+                    await semaphoreSlim.WaitAsync();
+                    try
                     {
                         if (_messages != null && _messages.Count > 0)
                         {
@@ -225,7 +231,7 @@ namespace CacheManager.Redis
                             {
                                 if (msgs != null)
                                 {
-                                    Publish(msgs);
+                                    await Publish(msgs).ConfigureAwait(false);
                                     Interlocked.Increment(ref SentChunks);
                                     Interlocked.Add(ref MessagesSent, _messages.Count);
                                     _skippedMessages = 0;
@@ -245,26 +251,22 @@ namespace CacheManager.Redis
 
                         _sending = false;
                     }
-#if NET40
-                },
-                this,
-                _source.Token,
-                TaskCreationOptions.None,
-                TaskScheduler.Default)
-                .ConfigureAwait(false);
-#else
+                    finally
+                    {
+                        semaphoreSlim.Release();
+                    }
+
                 },
                 this,
                 _source.Token,
                 TaskCreationOptions.DenyChildAttach,
                 TaskScheduler.Default)
                 .ConfigureAwait(false);
-#endif
         }
 
-        private void Subscribe()
+        private async Task Subscribe()
         {
-            _connection.Subscriber.Subscribe(
+            await _connection.Subscriber.SubscribeAsync(
                 _channelName,
                 (channel, msg) =>
                 {
@@ -328,7 +330,7 @@ namespace CacheManager.Redis
                         _logger.LogWarn(ex, "Error reading backplane message(s)");
                     }
                 },
-                CommandFlags.FireAndForget);
+                CommandFlags.FireAndForget).ConfigureAwait(false);
         }
     }
 }

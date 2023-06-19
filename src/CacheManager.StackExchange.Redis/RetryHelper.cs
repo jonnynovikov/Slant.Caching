@@ -10,7 +10,7 @@ namespace CacheManager.Redis
         private const string ErrorMessage = "Maximum number of tries exceeded to perform the action: {0}.";
         private const string WarningMessage = "Exception occurred performing an action. Retrying... {0}/{1}";
 
-        public static T Retry<T>(Func<T> retryme, int timeOut, int retries, ILogger logger)
+        public static T Retry<T>(Func<T> retryme, int retries, ILogger logger)
         {
             var tries = 0;
             do
@@ -37,13 +37,6 @@ namespace CacheManager.Redis
                     }
 
                     logger.LogWarn(ex, WarningMessage, tries, retries);
-                    
-                    // Removed all async delay to prevent potential deadlocks
-////#if NET40
-////                    TaskEx.Delay(timeOut).Wait();
-////#else
-////                    Task.Delay(timeOut).Wait();
-////#endif
                 }
                 catch (RedisConnectionException ex)
                 {
@@ -54,13 +47,6 @@ namespace CacheManager.Redis
                     }
 
                     logger.LogWarn(ex, WarningMessage, tries, retries);
-                    
-                    // Removed all async delay to prevent potential deadlocks
-////#if NET40
-////                    TaskEx.Delay(timeOut).Wait();
-////#else
-////                    Task.Delay(timeOut).Wait();
-////#endif
                 }
                 catch (TimeoutException ex)
                 {
@@ -71,12 +57,6 @@ namespace CacheManager.Redis
                     }
 
                     logger.LogWarn(ex, WarningMessage, tries, retries);
-                    // Removed all async delay to prevent potential deadlocks
-////#if NET40
-////                    TaskEx.Delay(timeOut).Wait();
-////#else
-////                    Task.Delay(timeOut).Wait();
-////#endif
                 }
                 catch (AggregateException aggregateException)
                 {
@@ -96,13 +76,6 @@ namespace CacheManager.Redis
                         if (e is RedisConnectionException || e is System.TimeoutException || e is RedisServerException)
                         {
                             logger.LogWarn(e, WarningMessage, tries, retries);
-                            // Removed all async delay to prevent potential deadlocks
-////#if NET40
-////                            TaskEx.Delay(timeOut).Wait();
-////#else
-////                            Task.Delay(timeOut).Wait();
-////#endif
-
                             return true;
                         }
 
@@ -115,7 +88,7 @@ namespace CacheManager.Redis
 
             return default(T);
         }
-        public static async Task<T> RetryAsync<T>(Func<Task<T>> retryme, int timeOut, int retries, ILogger logger)
+        public static async Task<T> RetryAsync<T>(Func<Task<T>> retryme, int retries, ILogger logger)
         {
             var tries = 0;
             do
@@ -124,7 +97,7 @@ namespace CacheManager.Redis
 
                 try
                 {
-                    return await retryme();
+                    return await retryme().ConfigureAwait(false);
                 }
 
                 // might occur on lua script execution on a readonly slave because the master just died.
@@ -142,13 +115,6 @@ namespace CacheManager.Redis
                     }
 
                     logger.LogWarn(ex, WarningMessage, tries, retries);
-
-                    // Removed all async delay to prevent potential deadlocks
-                    ////#if NET40
-                    ////                    TaskEx.Delay(timeOut).Wait();
-                    ////#else
-                    ////                    Task.Delay(timeOut).Wait();
-                    ////#endif
                 }
                 catch (RedisConnectionException ex)
                 {
@@ -159,13 +125,6 @@ namespace CacheManager.Redis
                     }
 
                     logger.LogWarn(ex, WarningMessage, tries, retries);
-
-                    // Removed all async delay to prevent potential deadlocks
-                    ////#if NET40
-                    ////                    TaskEx.Delay(timeOut).Wait();
-                    ////#else
-                    ////                    Task.Delay(timeOut).Wait();
-                    ////#endif
                 }
                 catch (TimeoutException ex)
                 {
@@ -176,12 +135,6 @@ namespace CacheManager.Redis
                     }
 
                     logger.LogWarn(ex, WarningMessage, tries, retries);
-                    // Removed all async delay to prevent potential deadlocks
-                    ////#if NET40
-                    ////                    TaskEx.Delay(timeOut).Wait();
-                    ////#else
-                    ////                    Task.Delay(timeOut).Wait();
-                    ////#endif
                 }
                 catch (AggregateException aggregateException)
                 {
@@ -201,13 +154,6 @@ namespace CacheManager.Redis
                         if (e is RedisConnectionException || e is System.TimeoutException || e is RedisServerException)
                         {
                             logger.LogWarn(e, WarningMessage, tries, retries);
-                            // Removed all async delay to prevent potential deadlocks
-                            ////#if NET40
-                            ////                            TaskEx.Delay(timeOut).Wait();
-                            ////#else
-                            ////                            Task.Delay(timeOut).Wait();
-                            ////#endif
-
                             return true;
                         }
 
@@ -219,19 +165,6 @@ namespace CacheManager.Redis
             while (tries < retries);
 
             return default(T);
-        }
-
-        public static void Retry(Action retryme, int timeOut, int retries, ILogger logger)
-        {
-            Retry(
-                () =>
-                {
-                    retryme();
-                    return true;
-                },
-                timeOut,
-                retries,
-                logger);
         }
     }
 }

@@ -134,7 +134,7 @@ namespace CacheManager.Core.Internal
         /// <param name="key">The key being used to identify the item within the cache.</param>
         /// <returns>The <c>CacheItem</c>.</returns>
         protected override async Task<CacheItem<TCacheValue>> GetCacheItemInternal(string key) =>
-            await GetCacheItemInternal(key, null);
+            await GetCacheItemInternal(key, null).ConfigureAwait(false);
 
         /// <summary>
         /// Gets a <c>CacheItem</c> for the specified key.

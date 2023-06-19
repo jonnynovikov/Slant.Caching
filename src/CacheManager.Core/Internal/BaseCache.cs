@@ -104,7 +104,7 @@ namespace CacheManager.Core.Internal
         {
             // null checks are done within ctor of the item
             var item = new CacheItem<TCacheValue>(key, value);
-            return await Add(item);
+            return await Add(item).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -130,7 +130,7 @@ namespace CacheManager.Core.Internal
         {
             // null checks are done within ctor of the item
             var item = new CacheItem<TCacheValue>(key, region, value);
-            return await Add(item);
+            return await Add(item).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -155,7 +155,7 @@ namespace CacheManager.Core.Internal
         {
             NotNull(item, nameof(item));
 
-            return await AddInternal(item);
+            return await AddInternal(item).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -194,7 +194,7 @@ namespace CacheManager.Core.Internal
         /// <exception cref="ArgumentNullException">If the <paramref name="key"/> is null.</exception>
         public virtual async Task<TCacheValue> Get(string key)
         {
-            var item = await GetCacheItem(key);
+            var item = await GetCacheItem(key).ConfigureAwait(false);
 
             if (item != null && item.Key.Equals(key, StringComparison.OrdinalIgnoreCase))
             {
@@ -217,7 +217,7 @@ namespace CacheManager.Core.Internal
         /// </exception>
         public virtual async Task<TCacheValue> Get(string key, string region)
         {
-            var item = await GetCacheItem(key, region);
+            var item = await GetCacheItem(key, region).ConfigureAwait(false);
 
             if (item != null
                 && item.Key.Equals(key, StringComparison.OrdinalIgnoreCase)
@@ -242,7 +242,7 @@ namespace CacheManager.Core.Internal
         /// </exception>
         public virtual async Task<TOut> Get<TOut>(string key)
         {
-            object value = await Get(key);
+            object value = await Get(key).ConfigureAwait(false);
             return GetCasted<TOut>(value);
         }
 
@@ -263,7 +263,7 @@ namespace CacheManager.Core.Internal
         /// </exception>
         public virtual async Task<TOut> Get<TOut>(string key, string region)
         {
-            object value = await Get(key, region);
+            object value = await Get(key, region).ConfigureAwait(false);
             return GetCasted<TOut>(value);
         }
 
@@ -277,7 +277,7 @@ namespace CacheManager.Core.Internal
         {
             NotNullOrWhiteSpace(key, nameof(key));
 
-            return await GetCacheItemInternal(key);
+            return await GetCacheItemInternal(key).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -294,7 +294,7 @@ namespace CacheManager.Core.Internal
             NotNullOrWhiteSpace(key, nameof(key));
             NotNullOrWhiteSpace(region, nameof(region));
 
-            return await GetCacheItemInternal(key, region);
+            return await GetCacheItemInternal(key, region).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -312,7 +312,7 @@ namespace CacheManager.Core.Internal
         public virtual async Task Put(string key, TCacheValue value)
         {
             var item = new CacheItem<TCacheValue>(key, value);
-            await Put(item);
+            await Put(item).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -334,7 +334,7 @@ namespace CacheManager.Core.Internal
         public virtual async Task Put(string key, TCacheValue value, string region)
         {
             var item = new CacheItem<TCacheValue>(key, region, value);
-            await Put(item);
+            await Put(item).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -356,7 +356,7 @@ namespace CacheManager.Core.Internal
         {
             NotNull(item, nameof(item));
 
-            await PutInternal(item);
+            await PutInternal(item).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -371,7 +371,7 @@ namespace CacheManager.Core.Internal
         {
             NotNullOrWhiteSpace(key, nameof(key));
 
-            return await RemoveInternal(key);
+            return await RemoveInternal(key).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -390,7 +390,7 @@ namespace CacheManager.Core.Internal
             NotNullOrWhiteSpace(key, nameof(key));
             NotNullOrWhiteSpace(region, nameof(region));
 
-            return await RemoveInternal(key, region);
+            return await RemoveInternal(key, region).ConfigureAwait(false);
         }
 
         /// <summary>

@@ -196,7 +196,7 @@ namespace CacheManager.Core
                     Logger.LogTrace("Clear: clearing handle {0}.", handle.Configuration.Name);
                 }
 
-                await handle.Clear();
+                await handle.Clear().ConfigureAwait(false);
                 handle.Stats.OnClear();
             }
 
@@ -231,7 +231,7 @@ namespace CacheManager.Core
                     Logger.LogTrace("Clear region: {0} in handle {1}.", region, handle.Configuration.Name);
                 }
 
-                await handle.ClearRegion(region);
+                await handle.ClearRegion(region).ConfigureAwait(false);
                 handle.Stats.OnClearRegion(region);
             }
 
@@ -242,7 +242,7 @@ namespace CacheManager.Core
                     Logger.LogTrace("Clear region: {0}: notifies backplane [clear region].", region);
                 }
 
-                _cacheBackplane.NotifyClearRegion(region);
+                await _cacheBackplane.NotifyClearRegion(region).ConfigureAwait(false);
             }
 
             TriggerOnClearRegion(region);
@@ -258,7 +258,7 @@ namespace CacheManager.Core
                     Logger.LogTrace("Checking if [{0}] exists on handle '{1}'.", key, handle.Configuration.Name);
                 }
 
-                if (await handle.Exists(key))
+                if (await handle.Exists(key).ConfigureAwait(false))
                 {
                     return true;
                 }
@@ -277,7 +277,7 @@ namespace CacheManager.Core
                     Logger.LogTrace("Checking if [{0}:{1}] exists on handle '{2}'.", region, key, handle.Configuration.Name);
                 }
 
-                if (await handle.Exists(key, region))
+                if (await handle.Exists(key, region).ConfigureAwait(false))
                 {
                     return true;
                 }
@@ -308,11 +308,11 @@ namespace CacheManager.Core
 
             var handleIndex = _cacheHandles.Length - 1;
 
-            var result = await AddItemToHandle(item, _cacheHandles[handleIndex]);
+            var result = await AddItemToHandle(item, _cacheHandles[handleIndex]).ConfigureAwait(false);
 
             // evict from other handles in any case because if it exists, it might be a different version
             // if not exist, its just a sanity check to invalidate other versions in upper layers.
-            await EvictFromOtherHandles(item.Key, item.Region, handleIndex);
+            await EvictFromOtherHandles(item.Key, item.Region, handleIndex).ConfigureAwait(false);
 
             if (result)
             {
@@ -321,11 +321,11 @@ namespace CacheManager.Core
                 {
                     if (string.IsNullOrWhiteSpace(item.Region))
                     {
-                        _cacheBackplane.NotifyChange(item.Key, CacheItemChangedEventAction.Add);
+                        await _cacheBackplane.NotifyChange(item.Key, CacheItemChangedEventAction.Add).ConfigureAwait(false);
                     }
                     else
                     {
-                        _cacheBackplane.NotifyChange(item.Key, item.Region, CacheItemChangedEventAction.Add);
+                        await _cacheBackplane.NotifyChange(item.Key, item.Region, CacheItemChangedEventAction.Add).ConfigureAwait(false);
                     }
 
                     if (_logTrace)
@@ -375,7 +375,7 @@ namespace CacheManager.Core
                         handle.Configuration.Name);
                 }
 
-                await handle.Put(item);
+                await handle.Put(item).ConfigureAwait(false);
             }
 
             // update backplane
@@ -388,11 +388,11 @@ namespace CacheManager.Core
 
                 if (string.IsNullOrWhiteSpace(item.Region))
                 {
-                    _cacheBackplane.NotifyChange(item.Key, CacheItemChangedEventAction.Put);
+                    await _cacheBackplane.NotifyChange(item.Key, CacheItemChangedEventAction.Put).ConfigureAwait(false);
                 }
                 else
                 {
-                    _cacheBackplane.NotifyChange(item.Key, item.Region, CacheItemChangedEventAction.Put);
+                    await _cacheBackplane.NotifyChange(item.Key, item.Region, CacheItemChangedEventAction.Put).ConfigureAwait(false);
                 }
             }
 
@@ -420,7 +420,7 @@ namespace CacheManager.Core
 
         /// <inheritdoc />
         protected override async Task<CacheItem<TCacheValue>> GetCacheItemInternal(string key) =>
-            await GetCacheItemInternal(key, null);
+            await GetCacheItemInternal(key, null).ConfigureAwait(false);
 
         /// <inheritdoc />
         protected override async Task<CacheItem<TCacheValue>> GetCacheItemInternal(string key, string region)
@@ -439,11 +439,11 @@ namespace CacheManager.Core
                 var handle = _cacheHandles[handleIndex];
                 if (string.IsNullOrWhiteSpace(region))
                 {
-                    cacheItem =await handle.GetCacheItem(key);
+                    cacheItem = await handle.GetCacheItem(key).ConfigureAwait(false);
                 }
                 else
                 {
-                    cacheItem = await handle.GetCacheItem(key, region);
+                    cacheItem = await handle.GetCacheItem(key, region).ConfigureAwait(false);
                 }
 
                 handle.Stats.OnGet(region);
@@ -459,7 +459,7 @@ namespace CacheManager.Core
                     cacheItem.LastAccessedUtc = DateTime.UtcNow;
 
                     // update other handles if needed
-                    await AddToHandles(cacheItem, handleIndex);
+                    await AddToHandles(cacheItem, handleIndex).ConfigureAwait(false);
                     handle.Stats.OnHit(region);
                     TriggerOnGet(key, region);
                     break;
@@ -480,7 +480,7 @@ namespace CacheManager.Core
 
         /// <inheritdoc />
         protected override async Task<bool> RemoveInternal(string key) =>
-            await RemoveInternal(key, null);
+            await RemoveInternal(key, null).ConfigureAwait(false);
 
         /// <inheritdoc />
         protected override async Task<bool> RemoveInternal(string key, string region)
@@ -499,11 +499,11 @@ namespace CacheManager.Core
                 var handleResult = false;
                 if (!string.IsNullOrWhiteSpace(region))
                 {
-                    handleResult = await handle.Remove(key, region);
+                    handleResult = await handle.Remove(key, region).ConfigureAwait(false);
                 }
                 else
                 {
-                    handleResult = await handle.Remove(key);
+                    handleResult = await handle.Remove(key).ConfigureAwait(false);
                 }
 
                 if (handleResult)
@@ -551,7 +551,7 @@ namespace CacheManager.Core
 
         private static async Task<bool> AddItemToHandle(CacheItem<TCacheValue> item, BaseCacheHandle<TCacheValue> handle)
         {
-            if (await handle.Add(item))
+            if (await handle.Add(item).ConfigureAwait(false))
             {
                 handle.Stats.OnAdd(item);
                 return true;
@@ -564,7 +564,7 @@ namespace CacheManager.Core
         {
             foreach (var handle in handles)
             {
-                await handle.Clear();
+                await handle.Clear().ConfigureAwait(false);
                 handle.Stats.OnClear();
             }
 
@@ -575,7 +575,7 @@ namespace CacheManager.Core
         {
             foreach (var handle in handles)
             {
-                await handle.ClearRegion(region);
+                await handle.ClearRegion(region).ConfigureAwait(false);
                 handle.Stats.OnClearRegion(region);
             }
 
@@ -586,7 +586,7 @@ namespace CacheManager.Core
         {
             foreach (var handle in handles)
             {
-               await EvictFromHandle(key, region, handle);
+                await EvictFromHandle(key, region, handle).ConfigureAwait(false);
             }
         }
 
@@ -604,11 +604,11 @@ namespace CacheManager.Core
             bool result;
             if (string.IsNullOrWhiteSpace(region))
             {
-                result = await handle.Remove(key);
+                result = await handle.Remove(key).ConfigureAwait(false);
             }
             else
             {
-                result = await handle.Remove(key, region);
+                result = await handle.Remove(key, region).ConfigureAwait(false);
             }
 
             if (result)
@@ -641,7 +641,7 @@ namespace CacheManager.Core
                         Logger.LogTrace("Updating handles, added [{0}] to handle '{1}'.", item, _cacheHandles[handleIndex].Configuration.Name);
                     }
 
-                    await _cacheHandles[handleIndex].Add(item);
+                    await _cacheHandles[handleIndex].Add(item).ConfigureAwait(false);
                 }
             }
         }
@@ -662,7 +662,7 @@ namespace CacheManager.Core
             {
                 if (handleIndex > foundIndex)
                 {
-                    if (await _cacheHandles[handleIndex].Add(item))
+                    if (await _cacheHandles[handleIndex].Add(item).ConfigureAwait(false))
                     {
                         _cacheHandles[handleIndex].Stats.OnAdd(item);
                     }
@@ -686,7 +686,7 @@ namespace CacheManager.Core
             {
                 if (handleIndex != excludeIndex)
                 {
-                    await EvictFromHandle(key, region, _cacheHandles[handleIndex]);
+                    await EvictFromHandle(key, region, _cacheHandles[handleIndex]).ConfigureAwait(false);
                 }
             }
         }
@@ -707,7 +707,7 @@ namespace CacheManager.Core
             {
                 if (handleIndex < excludeIndex)
                 {
-                    await EvictFromHandle(key, region, _cacheHandles[handleIndex]);
+                    await EvictFromHandle(key, region, _cacheHandles[handleIndex]).ConfigureAwait(false);
                 }
             }
         }
@@ -744,7 +744,7 @@ namespace CacheManager.Core
                         Logger.LogDebug("Backplane event: [Changed] for '{1}:{0}'.", args.Key, args.Region);
                     }
 
-                    await EvictFromHandles(args.Key, args.Region, handles(false));
+                    await EvictFromHandles(args.Key, args.Region, handles(false)).ConfigureAwait(false);
                     switch (args.Action)
                     {
                         case CacheItemChangedEventAction.Add:
@@ -768,7 +768,7 @@ namespace CacheManager.Core
                         Logger.LogTrace("Backplane event: [Remove] of {0} {1}.", args.Key, args.Region);
                     }
 
-                    await EvictFromHandles(args.Key, args.Region, handles(true));
+                    await EvictFromHandles(args.Key, args.Region, handles(true)).ConfigureAwait(false);
                     TriggerOnRemove(args.Key, args.Region, CacheActionEventArgOrigin.Remote);
                 };
 
@@ -779,7 +779,7 @@ namespace CacheManager.Core
                         Logger.LogTrace("Backplane event: [Clear].");
                     }
 
-                    await ClearHandles(handles(true));
+                    await ClearHandles(handles(true)).ConfigureAwait(false);
                     TriggerOnClear(CacheActionEventArgOrigin.Remote);
                 };
 
@@ -790,7 +790,7 @@ namespace CacheManager.Core
                         Logger.LogTrace("Backplane event: [Clear Region] region: {0}.", args.Region);
                     }
 
-                    await ClearRegionHandles(args.Region, handles(true));
+                    await ClearRegionHandles(args.Region, handles(true)).ConfigureAwait(false);
                     TriggerOnClearRegion(args.Region, CacheActionEventArgOrigin.Remote);
                 };
             }

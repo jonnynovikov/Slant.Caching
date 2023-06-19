@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 using static CacheManager.Core.Utility.Guard;
 
 namespace CacheManager.Core.Internal
@@ -106,7 +107,7 @@ namespace CacheManager.Core.Internal
         /// </summary>
         /// <param name="key">The key.</param>
         /// <param name="action">The action.</param>
-        public abstract void NotifyChange(string key, CacheItemChangedEventAction action);
+        public abstract Task NotifyChange(string key, CacheItemChangedEventAction action);
 
         /// <summary>
         /// Notifies other cache clients about a changed cache key.
@@ -114,31 +115,31 @@ namespace CacheManager.Core.Internal
         /// <param name="key">The key.</param>
         /// <param name="region">The region.</param>
         /// <param name="action">The action.</param>
-        public abstract void NotifyChange(string key, string region, CacheItemChangedEventAction action);
+        public abstract Task NotifyChange(string key, string region, CacheItemChangedEventAction action);
 
         /// <summary>
         /// Notifies other cache clients about a cache clear.
         /// </summary>
-        public abstract void NotifyClear();
+        public abstract Task NotifyClear();
 
         /// <summary>
         /// Notifies other cache clients about a cache clear region call.
         /// </summary>
         /// <param name="region">The region.</param>
-        public abstract void NotifyClearRegion(string region);
+        public abstract Task NotifyClearRegion(string region);
 
         /// <summary>
         /// Notifies other cache clients about a removed cache key.
         /// </summary>
         /// <param name="key">The key.</param>
-        public abstract void NotifyRemove(string key);
+        public abstract Task NotifyRemove(string key);
 
         /// <summary>
         /// Notifies other cache clients about a removed cache key.
         /// </summary>
         /// <param name="key">The key.</param>
         /// <param name="region">The region.</param>
-        public abstract void NotifyRemove(string key, string region);
+        public abstract Task NotifyRemove(string key, string region);
 
         /// <summary>
         /// Sends a changed message for the given <paramref name="key"/>.

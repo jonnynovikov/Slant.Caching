@@ -9,11 +9,11 @@ namespace CacheManager.Core
     {
         /// <inheritdoc />
         public async Task<TCacheValue> GetOrAdd(string key, TCacheValue value)
-            => await GetOrAdd(key, (k) => value);
+            => await GetOrAdd(key, (k) => value).ConfigureAwait(false);
 
         /// <inheritdoc />
         public async Task<TCacheValue> GetOrAdd(string key, string region, TCacheValue value)
-            => await GetOrAdd(key, region, (k, r) => value);
+            => await GetOrAdd(key, region, (k, r) => value).ConfigureAwait(false);
 
         /// <inheritdoc />
         public async Task<TCacheValue> GetOrAdd(string key, Func<string, TCacheValue> valueFactory)
@@ -21,7 +21,7 @@ namespace CacheManager.Core
             NotNullOrWhiteSpace(key, nameof(key));
             NotNull(valueFactory, nameof(valueFactory));
 
-            return (await GetOrAddInternal(key, null, (k, r) => new CacheItem<TCacheValue>(k, valueFactory(k)))).Value;
+            return (await GetOrAddInternal(key, null, (k, r) => new CacheItem<TCacheValue>(k, valueFactory(k))).ConfigureAwait(false)).Value;
         }
 
         /// <inheritdoc />
@@ -31,7 +31,7 @@ namespace CacheManager.Core
             NotNullOrWhiteSpace(region, nameof(region));
             NotNull(valueFactory, nameof(valueFactory));
 
-            return (await GetOrAddInternal(key, region, (k, r) => new CacheItem<TCacheValue>(k, r, valueFactory(k, r)))).Value;
+            return (await GetOrAddInternal(key, region, (k, r) => new CacheItem<TCacheValue>(k, r, valueFactory(k, r))).ConfigureAwait(false)).Value;
         }
 
         /// <inheritdoc />
@@ -40,7 +40,7 @@ namespace CacheManager.Core
             NotNullOrWhiteSpace(key, nameof(key));
             NotNull(valueFactory, nameof(valueFactory));
 
-            return await GetOrAddInternal(key, null, (k, r) => valueFactory(k));
+            return await GetOrAddInternal(key, null, (k, r) => valueFactory(k)).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
@@ -50,7 +50,7 @@ namespace CacheManager.Core
             NotNullOrWhiteSpace(region, nameof(region));
             NotNull(valueFactory, nameof(valueFactory));
 
-            return await GetOrAddInternal(key, region, valueFactory);
+            return await GetOrAddInternal(key, region, valueFactory).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
@@ -66,7 +66,7 @@ namespace CacheManager.Core
                 {
                     var newValue = valueFactory(k);
                     return newValue == null ? null : new CacheItem<TCacheValue>(k, newValue);
-                });
+                }).ConfigureAwait(false);
 
             if (getOrAddResult.Success)
                 return (getOrAddResult.Success, getOrAddResult.Item.Value);
@@ -89,7 +89,7 @@ namespace CacheManager.Core
                 {
                     var newValue = valueFactory(k, r);
                     return newValue == null ? null : new CacheItem<TCacheValue>(k, r, newValue);
-                });
+                }).ConfigureAwait(false);
 
             if (getOrAddResult.Success)
                 return (getOrAddResult.Success, getOrAddResult.Item.Value);
@@ -103,7 +103,7 @@ namespace CacheManager.Core
             NotNullOrWhiteSpace(key, nameof(key));
             NotNull(valueFactory, nameof(valueFactory));
 
-            return await TryGetOrAddInternal(key, null, (k, r) => valueFactory(k));
+            return await TryGetOrAddInternal(key, null, (k, r) => valueFactory(k)).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
@@ -113,7 +113,7 @@ namespace CacheManager.Core
             NotNullOrWhiteSpace(region, nameof(region));
             NotNull(valueFactory, nameof(valueFactory));
 
-            return await TryGetOrAddInternal(key, region, valueFactory);
+            return await TryGetOrAddInternal(key, region, valueFactory).ConfigureAwait(false);
         }
 
         private async Task<(bool Success, CacheItem<TCacheValue> Item)> TryGetOrAddInternal(string key, string region, Func<string, string, CacheItem<TCacheValue>> valueFactory)
@@ -124,7 +124,7 @@ namespace CacheManager.Core
             do
             {
                 tries++;
-                item = await GetCacheItemInternal(key, region);
+                item = await GetCacheItemInternal(key, region).ConfigureAwait(false);
                 if (item != null)
                 {
                     return (true, item);
@@ -141,7 +141,7 @@ namespace CacheManager.Core
                     return (false, item);
                 }
 
-                if (await AddInternal(newItem))
+                if (await AddInternal(newItem).ConfigureAwait(false))
                 {
                     item = newItem;
                     return (true, item);
@@ -159,7 +159,7 @@ namespace CacheManager.Core
             do
             {
                 tries++;
-                var item = await GetCacheItemInternal(key, region);
+                var item = await GetCacheItemInternal(key, region).ConfigureAwait(false);
                 if (item != null)
                 {
                     return item;
@@ -177,7 +177,7 @@ namespace CacheManager.Core
                     throw new InvalidOperationException("The CacheItem which should be added must not be null.");
                 }
 
-                if (await AddInternal(newItem))
+                if (await AddInternal(newItem).ConfigureAwait(false))
                 {
                     return newItem;
                 }

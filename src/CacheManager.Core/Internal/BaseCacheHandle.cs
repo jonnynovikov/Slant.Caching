@@ -106,7 +106,7 @@ namespace CacheManager.Core.Internal
             try
             {
 
-                var original = await GetCacheItem(key);
+                var original = await GetCacheItem(key).ConfigureAwait(false);
                 if (original == null)
                 {
                     return UpdateItemResult.ForItemDidNotExist<TCacheValue>();
@@ -121,7 +121,7 @@ namespace CacheManager.Core.Internal
 
                 var newItem = original.WithValue(newValue);
                 newItem.LastAccessedUtc = DateTime.UtcNow;
-                await Put(newItem);
+                await Put(newItem).ConfigureAwait(false);
                 return UpdateItemResult.ForSuccess(newItem);
             }
             finally
@@ -164,7 +164,7 @@ namespace CacheManager.Core.Internal
             await semaphoreSlim.WaitAsync();
             try
             {
-                var original = await GetCacheItem(key, region);
+                var original = await GetCacheItem(key, region).ConfigureAwait(false);
                 if (original == null)
                 {
                     return UpdateItemResult.ForItemDidNotExist<TCacheValue>();
@@ -179,7 +179,7 @@ namespace CacheManager.Core.Internal
                 var newItem = original.WithValue(newValue);
 
                 newItem.LastAccessedUtc = DateTime.UtcNow;
-                await Put(newItem);
+                await Put(newItem).ConfigureAwait(false);
                 return UpdateItemResult.ForSuccess(newItem);
             }
             finally
@@ -199,7 +199,7 @@ namespace CacheManager.Core.Internal
         {
             CheckDisposed();
             item = GetItemExpiration(item);
-            return await AddInternalPrepared(item);
+            return await AddInternalPrepared(item).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -211,7 +211,7 @@ namespace CacheManager.Core.Internal
         {
             CheckDisposed();
             item = GetItemExpiration(item);
-            await PutInternalPrepared(item);
+            await PutInternalPrepared(item).ConfigureAwait(false);
         }
 
         /// <summary>
