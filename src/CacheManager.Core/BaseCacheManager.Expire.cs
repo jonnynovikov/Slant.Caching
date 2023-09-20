@@ -1,117 +1,115 @@
 ﻿using System;
-using System.Linq;
 using System.Threading.Tasks;
 using CacheManager.Core.Logging;
 
-namespace CacheManager.Core
+namespace CacheManager.Core;
+
+public partial class BaseCacheManager<TCacheValue>
 {
-    public partial class BaseCacheManager<TCacheValue>
+    /// <inheritdoc />
+    public async Task Expire(string key, ExpirationMode mode, TimeSpan timeout)
+        => await ExpireInternal(key, null, mode, timeout).ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async Task Expire(string key, string region, ExpirationMode mode, TimeSpan timeout)
+        => await ExpireInternal(key, region, mode, timeout).ConfigureAwait(false);
+
+    private async Task ExpireInternal(string key, string region, ExpirationMode mode, TimeSpan timeout)
     {
-        /// <inheritdoc />
-        public async Task Expire(string key, ExpirationMode mode, TimeSpan timeout)
-            => await ExpireInternal(key, null, mode, timeout).ConfigureAwait(false);
+        CheckDisposed();
 
-        /// <inheritdoc />
-        public async Task Expire(string key, string region, ExpirationMode mode, TimeSpan timeout)
-            => await ExpireInternal(key, region, mode, timeout).ConfigureAwait(false);
-
-        private async Task ExpireInternal(string key, string region, ExpirationMode mode, TimeSpan timeout)
+        var item = await GetCacheItemInternal(key, region).ConfigureAwait(false);
+        if (item == null)
         {
-            CheckDisposed();
-
-            var item = await GetCacheItemInternal(key, region).ConfigureAwait(false);
-            if (item == null)
-            {
-                Logger.LogTrace("Expire: item not found for key {0}:{1}", key, region);
-                return;
-            }
-
-            if (_logTrace)
-            {
-                Logger.LogTrace("Expire [{0}] started.", item);
-            }
-
-            if (mode == ExpirationMode.Absolute)
-            {
-                item = item.WithAbsoluteExpiration(timeout);
-            }
-            else if (mode == ExpirationMode.Sliding)
-            {
-                item = item.WithSlidingExpiration(timeout);
-            }
-            else if (mode == ExpirationMode.None)
-            {
-                item = item.WithNoExpiration();
-            }
-            else if (mode == ExpirationMode.Default)
-            {
-                item = item.WithDefaultExpiration();
-            }
-
-            if (_logTrace)
-            {
-                Logger.LogTrace("Expire - Expiration of [{0}] has been modified. Using put to store the item...", item);
-            }
-
-            await PutInternal(item).ConfigureAwait(false);
+            Logger.LogTrace("Expire: item not found for key {0}:{1}", key, region);
+            return;
         }
 
-        /// <inheritdoc />
-        public async Task Expire(string key, DateTimeOffset absoluteExpiration)
+        if (_logTrace)
         {
-            var timeout = absoluteExpiration.UtcDateTime - DateTime.UtcNow;
-            if (timeout <= TimeSpan.Zero)
-            {
-                throw new ArgumentException("Expiration value must be greater than zero.", nameof(absoluteExpiration));
-            }
-
-            await Expire(key, ExpirationMode.Absolute, timeout).ConfigureAwait(false);
+            Logger.LogTrace("Expire [{0}] started.", item);
         }
 
-        /// <inheritdoc />
-        public async Task Expire(string key, string region, DateTimeOffset absoluteExpiration)
+        if (mode == ExpirationMode.Absolute)
         {
-            var timeout = absoluteExpiration.UtcDateTime - DateTime.UtcNow;
-            if (timeout <= TimeSpan.Zero)
-            {
-                throw new ArgumentException("Expiration value must be greater than zero.", nameof(absoluteExpiration));
-            }
-
-            await Expire(key, region, ExpirationMode.Absolute, timeout).ConfigureAwait(false);
+            item = item.WithAbsoluteExpiration(timeout);
+        }
+        else if (mode == ExpirationMode.Sliding)
+        {
+            item = item.WithSlidingExpiration(timeout);
+        }
+        else if (mode == ExpirationMode.None)
+        {
+            item = item.WithNoExpiration();
+        }
+        else if (mode == ExpirationMode.Default)
+        {
+            item = item.WithDefaultExpiration();
         }
 
-        /// <inheritdoc />
-        public async Task Expire(string key, TimeSpan slidingExpiration)
+        if (_logTrace)
         {
-            if (slidingExpiration <= TimeSpan.Zero)
-            {
-                throw new ArgumentException("Expiration value must be greater than zero.", nameof(slidingExpiration));
-            }
-
-            await Expire(key, ExpirationMode.Sliding, slidingExpiration).ConfigureAwait(false);
+            Logger.LogTrace("Expire - Expiration of [{0}] has been modified. Using put to store the item...", item);
         }
 
-        /// <inheritdoc />
-        public async Task Expire(string key, string region, TimeSpan slidingExpiration)
-        {
-            if (slidingExpiration <= TimeSpan.Zero)
-            {
-                throw new ArgumentException("Expiration value must be greater than zero.", nameof(slidingExpiration));
-            }
+        await PutInternal(item).ConfigureAwait(false);
+    }
 
-            await Expire(key, region, ExpirationMode.Sliding, slidingExpiration).ConfigureAwait(false);
+    /// <inheritdoc />
+    public async Task Expire(string key, DateTimeOffset absoluteExpiration)
+    {
+        var timeout = absoluteExpiration.UtcDateTime - DateTime.UtcNow;
+        if (timeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentException("Expiration value must be greater than zero.", nameof(absoluteExpiration));
         }
 
-        /// <inheritdoc />
-        public async Task RemoveExpiration(string key)
+        await Expire(key, ExpirationMode.Absolute, timeout).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task Expire(string key, string region, DateTimeOffset absoluteExpiration)
+    {
+        var timeout = absoluteExpiration.UtcDateTime - DateTime.UtcNow;
+        if (timeout <= TimeSpan.Zero)
         {
-            await Expire(key, ExpirationMode.None, default(TimeSpan)).ConfigureAwait(false);
+            throw new ArgumentException("Expiration value must be greater than zero.", nameof(absoluteExpiration));
         }
 
-        /// <inheritdoc />
-        public async Task RemoveExpiration(string key, string region)
+        await Expire(key, region, ExpirationMode.Absolute, timeout).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task Expire(string key, TimeSpan slidingExpiration)
+    {
+        if (slidingExpiration <= TimeSpan.Zero)
         {
-            await Expire(key, region, ExpirationMode.None, default(TimeSpan)).ConfigureAwait(false);
+            throw new ArgumentException("Expiration value must be greater than zero.", nameof(slidingExpiration));
         }
+
+        await Expire(key, ExpirationMode.Sliding, slidingExpiration).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task Expire(string key, string region, TimeSpan slidingExpiration)
+    {
+        if (slidingExpiration <= TimeSpan.Zero)
+        {
+            throw new ArgumentException("Expiration value must be greater than zero.", nameof(slidingExpiration));
+        }
+
+        await Expire(key, region, ExpirationMode.Sliding, slidingExpiration).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task RemoveExpiration(string key)
+    {
+        await Expire(key, ExpirationMode.None, default(TimeSpan)).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task RemoveExpiration(string key, string region)
+    {
+        await Expire(key, region, ExpirationMode.None, default(TimeSpan)).ConfigureAwait(false);
     }
 }

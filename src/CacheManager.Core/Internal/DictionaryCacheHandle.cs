@@ -6,285 +6,284 @@ using System.Threading.Tasks;
 using CacheManager.Core.Logging;
 using static CacheManager.Core.Utility.Guard;
 
-namespace CacheManager.Core.Internal
+namespace CacheManager.Core.Internal;
+
+/// <summary>
+/// Custom settings for <see cref="DictionaryCacheHandle{TCacheValue}"/>.
+/// </summary>
+public class DictionaryCacheOptions
 {
     /// <summary>
-    /// Custom settings for <see cref="DictionaryCacheHandle{TCacheValue}"/>.
+    /// Gets or sets the interval at which the cache should scan for expired keys.
     /// </summary>
-    public class DictionaryCacheOptions
+    public TimeSpan ExpirationScanFrequency { get; set; } = TimeSpan.FromMinutes(1);
+}
+
+/// <summary>
+/// This handle is for internal use and testing. It does not implement any expiration.
+/// </summary>
+/// <typeparam name="TCacheValue">The type of the cache value.</typeparam>
+public class DictionaryCacheHandle<TCacheValue> : BaseCacheHandle<TCacheValue>
+{
+    private readonly static Random _random = new Random();
+    private readonly ConcurrentDictionary<string, CacheItem<TCacheValue>> _cache;
+    private readonly Timer _timer;
+    private int _scanRunning;
+    private readonly TimeSpan _scanInterval;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DictionaryCacheHandle{TCacheValue}"/> class.
+    /// </summary>
+    /// <param name="managerConfiguration">The manager configuration.</param>
+    /// <param name="configuration">The cache handle configuration.</param>
+    /// <param name="loggerFactory">The logger factory.</param>
+    public DictionaryCacheHandle(ICacheManagerConfiguration managerConfiguration, CacheHandleConfiguration configuration, ILoggerFactory loggerFactory)
+        : this(managerConfiguration, configuration, loggerFactory, options: null)
     {
-        /// <summary>
-        /// Gets or sets the interval at which the cache should scan for expired keys.
-        /// </summary>
-        public TimeSpan ExpirationScanFrequency { get; set; } = TimeSpan.FromMinutes(1);
     }
 
     /// <summary>
-    /// This handle is for internal use and testing. It does not implement any expiration.
+    /// Initializes a new instance of the <see cref="DictionaryCacheHandle{TCacheValue}"/> class.
     /// </summary>
-    /// <typeparam name="TCacheValue">The type of the cache value.</typeparam>
-    public class DictionaryCacheHandle<TCacheValue> : BaseCacheHandle<TCacheValue>
+    /// <param name="managerConfiguration">The manager configuration.</param>
+    /// <param name="configuration">The cache handle configuration.</param>
+    /// <param name="loggerFactory">The logger factory.</param>
+    /// <param name="options">Optional settings for this instance.</param>
+    public DictionaryCacheHandle(ICacheManagerConfiguration managerConfiguration, CacheHandleConfiguration configuration, ILoggerFactory loggerFactory, DictionaryCacheOptions options)
+        : base(managerConfiguration, configuration)
     {
-        private readonly static Random _random = new Random();
-        private readonly ConcurrentDictionary<string, CacheItem<TCacheValue>> _cache;
-        private readonly Timer _timer;
-        private int _scanRunning;
-        private readonly TimeSpan _scanInterval;
+        NotNull(loggerFactory, nameof(loggerFactory));
+        Logger = loggerFactory.CreateLogger(this);
+        _cache = new ConcurrentDictionary<string, CacheItem<TCacheValue>>();
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="DictionaryCacheHandle{TCacheValue}"/> class.
-        /// </summary>
-        /// <param name="managerConfiguration">The manager configuration.</param>
-        /// <param name="configuration">The cache handle configuration.</param>
-        /// <param name="loggerFactory">The logger factory.</param>
-        public DictionaryCacheHandle(ICacheManagerConfiguration managerConfiguration, CacheHandleConfiguration configuration, ILoggerFactory loggerFactory)
-            : this(managerConfiguration, configuration, loggerFactory, options: null)
+        options = options ?? new DictionaryCacheOptions();
+        _scanInterval = options.ExpirationScanFrequency;
+
+        var interval = (int)(_scanInterval.TotalMilliseconds < 100 ? 100 : _scanInterval.TotalMilliseconds);
+
+        _timer = new Timer(TimerLoop, null, _random.Next(0, interval), interval);
+    }
+
+    /// <summary>
+    /// Gets the count.
+    /// </summary>
+    /// <value>The count.</value>
+    public override int Count => _cache.Count;
+
+    /// <inheritdoc />
+    protected override ILogger Logger { get; }
+
+    /// <summary>
+    /// Clears this cache, removing all items in the base cache and all regions.
+    /// </summary>
+    public override Task Clear() {_cache.Clear(); return Task.CompletedTask; }
+
+    /// <summary>
+    /// Clears the cache region, removing all items from the specified <paramref name="region"/> only.
+    /// </summary>
+    /// <param name="region">The cache region.</param>
+    /// <exception cref="System.ArgumentNullException">If region is null.</exception>
+    public override Task ClearRegion(string region)
+    {
+        NotNullOrWhiteSpace(region, nameof(region));
+
+        var key = string.Concat(region, ":");
+        foreach (var item in _cache.Where(p => p.Key.StartsWith(key, StringComparison.OrdinalIgnoreCase)))
         {
+            _cache.TryRemove(item.Key, out CacheItem<TCacheValue> val);
         }
+        return Task.CompletedTask;
+    }
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="DictionaryCacheHandle{TCacheValue}"/> class.
-        /// </summary>
-        /// <param name="managerConfiguration">The manager configuration.</param>
-        /// <param name="configuration">The cache handle configuration.</param>
-        /// <param name="loggerFactory">The logger factory.</param>
-        /// <param name="options">Optional settings for this instance.</param>
-        public DictionaryCacheHandle(ICacheManagerConfiguration managerConfiguration, CacheHandleConfiguration configuration, ILoggerFactory loggerFactory, DictionaryCacheOptions options)
-            : base(managerConfiguration, configuration)
+    /// <inheritdoc />
+    public override Task<bool> Exists(string key)
+    {
+        NotNullOrWhiteSpace(key, nameof(key));
+
+        return Task.FromResult(_cache.ContainsKey(key));
+    }
+
+    /// <inheritdoc />
+    public override Task<bool> Exists(string key, string region)
+    {
+        NotNullOrWhiteSpace(region, nameof(region));
+        var fullKey = GetKey(key, region);
+        return Task.FromResult(_cache.ContainsKey(fullKey));
+    }
+
+    /// <summary>
+    /// Adds a value to the cache.
+    /// </summary>
+    /// <param name="item">The <c>CacheItem</c> to be added to the cache.</param>
+    /// <returns>
+    /// <c>true</c> if the key was not already added to the cache, <c>false</c> otherwise.
+    /// </returns>
+    /// <exception cref="System.ArgumentNullException">If item is null.</exception>
+    protected override Task<bool> AddInternalPrepared(CacheItem<TCacheValue> item)
+    {
+        NotNull(item, nameof(item));
+
+        var key = GetKey(item.Key, item.Region);
+
+        return Task.FromResult(_cache.TryAdd(key, item));
+    }
+
+    /// <summary>
+    /// Gets a <c>CacheItem</c> for the specified key.
+    /// </summary>
+    /// <param name="key">The key being used to identify the item within the cache.</param>
+    /// <returns>The <c>CacheItem</c>.</returns>
+    protected override async Task<CacheItem<TCacheValue>> GetCacheItemInternal(string key) =>
+        await GetCacheItemInternal(key, null).ConfigureAwait(false);
+
+    /// <summary>
+    /// Gets a <c>CacheItem</c> for the specified key.
+    /// </summary>
+    /// <param name="key">The key being used to identify the item within the cache.</param>
+    /// <param name="region">The cache region.</param>
+    /// <returns>The <c>CacheItem</c>.</returns>
+    protected override Task<CacheItem<TCacheValue>> GetCacheItemInternal(string key, string region)
+    {
+        var fullKey = GetKey(key, region);
+
+        if (_cache.TryGetValue(fullKey, out CacheItem<TCacheValue> result))
         {
-            NotNull(loggerFactory, nameof(loggerFactory));
-            Logger = loggerFactory.CreateLogger(this);
-            _cache = new ConcurrentDictionary<string, CacheItem<TCacheValue>>();
-
-            options = options ?? new DictionaryCacheOptions();
-            _scanInterval = options.ExpirationScanFrequency;
-
-            var interval = (int)(_scanInterval.TotalMilliseconds < 100 ? 100 : _scanInterval.TotalMilliseconds);
-
-            _timer = new Timer(TimerLoop, null, _random.Next(0, interval), interval);
-        }
-
-        /// <summary>
-        /// Gets the count.
-        /// </summary>
-        /// <value>The count.</value>
-        public override int Count => _cache.Count;
-
-        /// <inheritdoc />
-        protected override ILogger Logger { get; }
-
-        /// <summary>
-        /// Clears this cache, removing all items in the base cache and all regions.
-        /// </summary>
-        public override Task Clear() {_cache.Clear(); return Task.CompletedTask; }
-
-        /// <summary>
-        /// Clears the cache region, removing all items from the specified <paramref name="region"/> only.
-        /// </summary>
-        /// <param name="region">The cache region.</param>
-        /// <exception cref="System.ArgumentNullException">If region is null.</exception>
-        public override Task ClearRegion(string region)
-        {
-            NotNullOrWhiteSpace(region, nameof(region));
-
-            var key = string.Concat(region, ":");
-            foreach (var item in _cache.Where(p => p.Key.StartsWith(key, StringComparison.OrdinalIgnoreCase)))
+            if (result.ExpirationMode != ExpirationMode.None && IsExpired(result, DateTime.UtcNow))
             {
-                _cache.TryRemove(item.Key, out CacheItem<TCacheValue> val);
+                _cache.TryRemove(fullKey, out CacheItem<TCacheValue> removeResult);
+                TriggerCacheSpecificRemove(key, region, CacheItemRemovedReason.Expired, result.Value);
+                return null;
             }
-            return Task.CompletedTask;
         }
 
-        /// <inheritdoc />
-        public override Task<bool> Exists(string key)
-        {
-            NotNullOrWhiteSpace(key, nameof(key));
+        return Task.FromResult(result);
+    }
 
-            return Task.FromResult(_cache.ContainsKey(key));
+    /// <summary>
+    /// Puts the <paramref name="item"/> into the cache. If the item exists it will get updated
+    /// with the new value. If the item doesn't exist, the item will be added to the cache.
+    /// </summary>
+    /// <param name="item">The <c>CacheItem</c> to be added to the cache.</param>
+    /// <exception cref="System.ArgumentNullException">If item is null.</exception>
+    protected override Task PutInternalPrepared(CacheItem<TCacheValue> item)
+    {
+        NotNull(item, nameof(item));
+
+        _cache[GetKey(item.Key, item.Region)] = item;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Removes a value from the cache for the specified key.
+    /// </summary>
+    /// <param name="key">The key being used to identify the item within the cache.</param>
+    /// <returns>
+    /// <c>true</c> if the key was found and removed from the cache, <c>false</c> otherwise.
+    /// </returns>
+    protected override Task<bool> RemoveInternal(string key) => RemoveInternal(key, null);
+
+    /// <summary>
+    /// Removes a value from the cache for the specified key.
+    /// </summary>
+    /// <param name="key">The key being used to identify the item within the cache.</param>
+    /// <param name="region">The cache region.</param>
+    /// <returns>
+    /// <c>true</c> if the key was found and removed from the cache, <c>false</c> otherwise.
+    /// </returns>
+    protected override Task<bool> RemoveInternal(string key, string region)
+    {
+        var fullKey = GetKey(key, region);
+        return Task.FromResult( _cache.TryRemove(fullKey, out CacheItem<TCacheValue> val));
+    }
+
+    /// <summary>
+    /// Gets the key.
+    /// </summary>
+    /// <param name="key">The key.</param>
+    /// <param name="region">The region.</param>
+    /// <returns>The full key.</returns>
+    /// <exception cref="System.ArgumentException">If Key is empty.</exception>
+    private static string GetKey(string key, string region)
+    {
+        NotNullOrWhiteSpace(key, nameof(key));
+
+        if (string.IsNullOrWhiteSpace(region))
+        {
+            return key;
         }
 
-        /// <inheritdoc />
-        public override Task<bool> Exists(string key, string region)
+        return string.Concat(region, ":", key);
+    }
+
+    private static bool IsExpired(CacheItem<TCacheValue> item, DateTime now)
+    {
+        if (item.ExpirationMode == ExpirationMode.Absolute
+            && item.CreatedUtc.Add(item.ExpirationTimeout) < now)
         {
-            NotNullOrWhiteSpace(region, nameof(region));
-            var fullKey = GetKey(key, region);
-            return Task.FromResult(_cache.ContainsKey(fullKey));
+            return true;
+        }
+        else if (item.ExpirationMode == ExpirationMode.Sliding
+                 && item.LastAccessedUtc.Add(item.ExpirationTimeout) < now)
+        {
+            return true;
         }
 
-        /// <summary>
-        /// Adds a value to the cache.
-        /// </summary>
-        /// <param name="item">The <c>CacheItem</c> to be added to the cache.</param>
-        /// <returns>
-        /// <c>true</c> if the key was not already added to the cache, <c>false</c> otherwise.
-        /// </returns>
-        /// <exception cref="System.ArgumentNullException">If item is null.</exception>
-        protected override Task<bool> AddInternalPrepared(CacheItem<TCacheValue> item)
+        return false;
+    }
+
+    private void TimerLoop(object state)
+    {
+        if (_scanRunning > 0)
         {
-            NotNull(item, nameof(item));
-
-            var key = GetKey(item.Key, item.Region);
-
-            return Task.FromResult(_cache.TryAdd(key, item));
+            return;
         }
 
-        /// <summary>
-        /// Gets a <c>CacheItem</c> for the specified key.
-        /// </summary>
-        /// <param name="key">The key being used to identify the item within the cache.</param>
-        /// <returns>The <c>CacheItem</c>.</returns>
-        protected override async Task<CacheItem<TCacheValue>> GetCacheItemInternal(string key) =>
-            await GetCacheItemInternal(key, null).ConfigureAwait(false);
-
-        /// <summary>
-        /// Gets a <c>CacheItem</c> for the specified key.
-        /// </summary>
-        /// <param name="key">The key being used to identify the item within the cache.</param>
-        /// <param name="region">The cache region.</param>
-        /// <returns>The <c>CacheItem</c>.</returns>
-        protected override Task<CacheItem<TCacheValue>> GetCacheItemInternal(string key, string region)
+        if (Interlocked.CompareExchange(ref _scanRunning, 1, 0) == 0)
         {
-            var fullKey = GetKey(key, region);
-
-            if (_cache.TryGetValue(fullKey, out CacheItem<TCacheValue> result))
+            try
             {
-                if (result.ExpirationMode != ExpirationMode.None && IsExpired(result, DateTime.UtcNow))
+                if (Logger.IsEnabled(LogLevel.Debug))
                 {
-                    _cache.TryRemove(fullKey, out CacheItem<TCacheValue> removeResult);
-                    TriggerCacheSpecificRemove(key, region, CacheItemRemovedReason.Expired, result.Value);
-                    return null;
+                    Logger.LogDebug("'{0}' starting eviction scan.", Configuration.Name);
                 }
+
+                ScanForExpiredItems();
             }
-
-            return Task.FromResult(result);
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error occurred during eviction scan.");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _scanRunning, 0);
+            }
         }
+    }
 
-        /// <summary>
-        /// Puts the <paramref name="item"/> into the cache. If the item exists it will get updated
-        /// with the new value. If the item doesn't exist, the item will be added to the cache.
-        /// </summary>
-        /// <param name="item">The <c>CacheItem</c> to be added to the cache.</param>
-        /// <exception cref="System.ArgumentNullException">If item is null.</exception>
-        protected override Task PutInternalPrepared(CacheItem<TCacheValue> item)
+    private int ScanForExpiredItems()
+    {
+        var removed = 0;
+        var now = DateTime.UtcNow;
+        foreach (var item in _cache.Values)
         {
-            NotNull(item, nameof(item));
+            if (IsExpired(item, now))
+            {
+                RemoveInternal(item.Key, item.Region);
 
-            _cache[GetKey(item.Key, item.Region)] = item;
-            return Task.CompletedTask;
+                // trigger global eviction event
+                TriggerCacheSpecificRemove(item.Key, item.Region, CacheItemRemovedReason.Expired, item.Value);
+
+                // fix stats
+                Stats.OnRemove(item.Region);
+                removed++;
+            }
         }
 
-        /// <summary>
-        /// Removes a value from the cache for the specified key.
-        /// </summary>
-        /// <param name="key">The key being used to identify the item within the cache.</param>
-        /// <returns>
-        /// <c>true</c> if the key was found and removed from the cache, <c>false</c> otherwise.
-        /// </returns>
-        protected override Task<bool> RemoveInternal(string key) => RemoveInternal(key, null);
-
-        /// <summary>
-        /// Removes a value from the cache for the specified key.
-        /// </summary>
-        /// <param name="key">The key being used to identify the item within the cache.</param>
-        /// <param name="region">The cache region.</param>
-        /// <returns>
-        /// <c>true</c> if the key was found and removed from the cache, <c>false</c> otherwise.
-        /// </returns>
-        protected override Task<bool> RemoveInternal(string key, string region)
+        if (removed > 0 && Logger.IsEnabled(LogLevel.Information))
         {
-            var fullKey = GetKey(key, region);
-            return Task.FromResult( _cache.TryRemove(fullKey, out CacheItem<TCacheValue> val));
+            Logger.LogInfo("'{0}' removed '{1}' expired items during eviction run.", Configuration.Name, removed);
         }
 
-        /// <summary>
-        /// Gets the key.
-        /// </summary>
-        /// <param name="key">The key.</param>
-        /// <param name="region">The region.</param>
-        /// <returns>The full key.</returns>
-        /// <exception cref="System.ArgumentException">If Key is empty.</exception>
-        private static string GetKey(string key, string region)
-        {
-            NotNullOrWhiteSpace(key, nameof(key));
-
-            if (string.IsNullOrWhiteSpace(region))
-            {
-                return key;
-            }
-
-            return string.Concat(region, ":", key);
-        }
-
-        private static bool IsExpired(CacheItem<TCacheValue> item, DateTime now)
-        {
-            if (item.ExpirationMode == ExpirationMode.Absolute
-                && item.CreatedUtc.Add(item.ExpirationTimeout) < now)
-            {
-                return true;
-            }
-            else if (item.ExpirationMode == ExpirationMode.Sliding
-                && item.LastAccessedUtc.Add(item.ExpirationTimeout) < now)
-            {
-                return true;
-            }
-
-            return false;
-        }
-
-        private void TimerLoop(object state)
-        {
-            if (_scanRunning > 0)
-            {
-                return;
-            }
-
-            if (Interlocked.CompareExchange(ref _scanRunning, 1, 0) == 0)
-            {
-                try
-                {
-                    if (Logger.IsEnabled(LogLevel.Debug))
-                    {
-                        Logger.LogDebug("'{0}' starting eviction scan.", Configuration.Name);
-                    }
-
-                    ScanForExpiredItems();
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogError(ex, "Error occurred during eviction scan.");
-                }
-                finally
-                {
-                    Interlocked.Exchange(ref _scanRunning, 0);
-                }
-            }
-        }
-
-        private int ScanForExpiredItems()
-        {
-            var removed = 0;
-            var now = DateTime.UtcNow;
-            foreach (var item in _cache.Values)
-            {
-                if (IsExpired(item, now))
-                {
-                    RemoveInternal(item.Key, item.Region);
-
-                    // trigger global eviction event
-                    TriggerCacheSpecificRemove(item.Key, item.Region, CacheItemRemovedReason.Expired, item.Value);
-
-                    // fix stats
-                    Stats.OnRemove(item.Region);
-                    removed++;
-                }
-            }
-
-            if (removed > 0 && Logger.IsEnabled(LogLevel.Information))
-            {
-                Logger.LogInfo("'{0}' removed '{1}' expired items during eviction run.", Configuration.Name, removed);
-            }
-
-            return removed;
-        }
+        return removed;
     }
 }
