@@ -1,3 +1,8 @@
+# ⚡ Slant.Caching
+
+High performance configurable caching for .NET 
+
+
 CacheManager is an open source caching abstraction layer for .NET written in C#. It supports various cache providers and implements many advanced features.
 
 The main goal of the CacheManager package is to make developer's life easier to handle even very complex caching scenarios.  
