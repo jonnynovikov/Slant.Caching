@@ -1,5 +1,5 @@
 ---
-uid: CacheManager.Core.JsonConfigurationBuilderExtensions
+uid: Slant.Caching.Manager.JsonConfigurationBuilderExtensions
 ---
 
 Configuring CacheManager to use the JSON serializer will replace the default Binary serializer.

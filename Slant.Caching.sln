@@ -30,7 +30,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "apispec", "apispec", "{96C0
 		docs\apispec\CacheManager_Core_MicrosoftLoggingBuilderExtensions.md = docs\apispec\CacheManager_Core_MicrosoftLoggingBuilderExtensions.md
 	EndProjectSection
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CacheManager.Core", "src\CacheManager.Core\CacheManager.Core.csproj", "{C9B4E53B-15FC-42AF-9107-0C2E52E8680B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Slant.Caching.Manager", "src\Slant.Caching.Manager\Slant.Caching.Manager.csproj", "{C9B4E53B-15FC-42AF-9107-0C2E52E8680B}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "build", "build", "{CB286D98-C974-4266-B8F2-1F9DE8B2B0EC}"
 	ProjectSection(SolutionItems) = preProject
@@ -50,6 +50,16 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "benchmarks", "benchmarks", 
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{133C2417-3C47-4ED7-B879-EA7C9F212D7A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Slant.Caching.Manager.Tests", "test\Slant.Caching.Manager.Tests\Slant.Caching.Manager.Tests.csproj", "{0A1C42AA-7BBC-498A-9EAB-A60941D6EF05}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Slant.Caching.Manager.SystemRuntimeCaching", "src\Slant.Caching.Manager.SystemRuntimeCaching\Slant.Caching.Manager.SystemRuntimeCaching.csproj", "{CBB543D1-6CE9-49D6-A800-297CBEC01848}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Slant.Caching.Manager.Redis.Tests", "test\Slant.Caching.Manager.Redis.Tests\Slant.Caching.Manager.Redis.Tests.csproj", "{73683FF7-B222-4F03-8F3C-5BF34848A6BA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Slant.Caching.Manager.MemoryCache", "src\Slant.Caching.Manager.MemoryCache\Slant.Caching.Manager.MemoryCache.csproj", "{648F682A-84E9-4A9C-82EA-CED06822F865}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Slant.Caching.Manager.Benchmarks", "benchmarks\Slant.Caching.Manager.Benchmarks\Slant.Caching.Manager.Benchmarks.csproj", "{3DF14C34-9721-4AD0-B094-536A58A62B7E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -60,6 +70,26 @@ Global
 		{C9B4E53B-15FC-42AF-9107-0C2E52E8680B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C9B4E53B-15FC-42AF-9107-0C2E52E8680B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C9B4E53B-15FC-42AF-9107-0C2E52E8680B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0A1C42AA-7BBC-498A-9EAB-A60941D6EF05}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0A1C42AA-7BBC-498A-9EAB-A60941D6EF05}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0A1C42AA-7BBC-498A-9EAB-A60941D6EF05}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0A1C42AA-7BBC-498A-9EAB-A60941D6EF05}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CBB543D1-6CE9-49D6-A800-297CBEC01848}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CBB543D1-6CE9-49D6-A800-297CBEC01848}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CBB543D1-6CE9-49D6-A800-297CBEC01848}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CBB543D1-6CE9-49D6-A800-297CBEC01848}.Release|Any CPU.Build.0 = Release|Any CPU
+		{73683FF7-B222-4F03-8F3C-5BF34848A6BA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{73683FF7-B222-4F03-8F3C-5BF34848A6BA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{73683FF7-B222-4F03-8F3C-5BF34848A6BA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{73683FF7-B222-4F03-8F3C-5BF34848A6BA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{648F682A-84E9-4A9C-82EA-CED06822F865}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{648F682A-84E9-4A9C-82EA-CED06822F865}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{648F682A-84E9-4A9C-82EA-CED06822F865}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{648F682A-84E9-4A9C-82EA-CED06822F865}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3DF14C34-9721-4AD0-B094-536A58A62B7E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3DF14C34-9721-4AD0-B094-536A58A62B7E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3DF14C34-9721-4AD0-B094-536A58A62B7E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3DF14C34-9721-4AD0-B094-536A58A62B7E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -69,6 +99,11 @@ Global
 		{C9B4E53B-15FC-42AF-9107-0C2E52E8680B} = {58CC885F-40A7-4C82-990D-3F36AAA088A7}
 		{CB286D98-C974-4266-B8F2-1F9DE8B2B0EC} = {D83D3737-3BD4-4AEE-8C42-CDED9410DB79}
 		{DB13A410-EAF1-4966-BA56-FC73BAC7CF3D} = {D83D3737-3BD4-4AEE-8C42-CDED9410DB79}
+		{0A1C42AA-7BBC-498A-9EAB-A60941D6EF05} = {133C2417-3C47-4ED7-B879-EA7C9F212D7A}
+		{CBB543D1-6CE9-49D6-A800-297CBEC01848} = {58CC885F-40A7-4C82-990D-3F36AAA088A7}
+		{73683FF7-B222-4F03-8F3C-5BF34848A6BA} = {133C2417-3C47-4ED7-B879-EA7C9F212D7A}
+		{648F682A-84E9-4A9C-82EA-CED06822F865} = {58CC885F-40A7-4C82-990D-3F36AAA088A7}
+		{3DF14C34-9721-4AD0-B094-536A58A62B7E} = {81E202D2-BEB7-4BAF-B7BE-53D628120F8A}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {55AD6484-7AB9-4CE1-B604-3410DA3876C0}

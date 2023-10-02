@@ -1,5 +1,5 @@
 ---
-uid: CacheManager.Core.MicrosoftLoggingBuilderExtensions
+uid: Slant.Caching.Manager.MicrosoftLoggingBuilderExtensions
 remarks: 'To use the different log providers, install the corresponding `Microsoft.Extensions.Logging.*` package.'
 ---
 

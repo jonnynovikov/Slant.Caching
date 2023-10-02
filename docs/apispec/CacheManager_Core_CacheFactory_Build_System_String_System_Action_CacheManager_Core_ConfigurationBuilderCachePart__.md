@@ -1,5 +1,5 @@
 ---
-uid: CacheManager.Core.CacheFactory.Build(System.String,System.Action{CacheManager.Core.ConfigurationBuilderCachePart})
+uid: Slant.Caching.Manager.CacheFactory.Build(System.String,System.Action{CacheManager.Core.ConfigurationBuilderCachePart})
 remarks: 
 ---
 

@@ -1,9 +1,9 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <xs:schema id="CacheManagerCfg"
-    targetNamespace="http://cachemanager.michaco.net/schemas/CacheManagerCfg.xsd"
+    targetNamespace="https://jonnify.com/schemas/SlantCacheManager.xsd"
     elementFormDefault="qualified"
-    xmlns="http://cachemanager.michaco.net/schemas/CacheManagerCfg.xsd"
-    xmlns:mstns="http://cachemanager.michaco.net/schemas/CacheManagerCfg.xsd"
+    xmlns="https://jonnify.com/schemas/SlantCacheManager.xsd"
+    xmlns:mstns="https://jonnify.com/schemas/SlantCacheManager.xsd"
     xmlns:xs="http://www.w3.org/2001/XMLSchema"
 >
     <xs:element name="handle">

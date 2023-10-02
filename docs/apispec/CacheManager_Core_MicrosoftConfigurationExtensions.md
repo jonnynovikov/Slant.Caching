@@ -1,5 +1,5 @@
 ---
-uid: CacheManager.Core.MicrosoftConfigurationExtensions
+uid: Slant.Caching.Manager.MicrosoftConfigurationExtensions
 remarks: 'To be able to use the different configuration providers like JSON or XML, you have to install the corresponding 
 `Microsoft.Extensions.Configuration.*` package(s).'
 ---
