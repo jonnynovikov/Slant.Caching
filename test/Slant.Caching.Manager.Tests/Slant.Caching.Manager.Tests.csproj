@@ -27,7 +27,6 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\Slant.Caching.Manager\Slant.Caching.Manager.csproj" />
-        <ProjectReference Include="..\..\src\Slant.Caching.Manager.SystemRuntimeCaching\Slant.Caching.Manager.SystemRuntimeCaching.csproj" />
         <ProjectReference Include="..\..\src\Slant.Caching.Manager.MemoryCache\Slant.Caching.Manager.MemoryCache.csproj" />
     </ItemGroup>
 

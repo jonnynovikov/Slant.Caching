@@ -1,21 +1,18 @@
-﻿using Slant.Caching.Manager.Configuration;
-using Slant.Caching.Manager.MemoryCache;
-using Slant.Caching.SystemRuntimeCaching;
-
-namespace Slant.Caching.Manager.Tests;
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
-using Slant.Caching.Manager;
 using Slant.Caching.Manager.Internal;
 using Slant.Caching.Manager.Logging;
 using Slant.Caching.Manager.Utility;
 using FluentAssertions;
 using Xunit;
 using Xunit.Abstractions;
+using Slant.Caching.Manager.Configuration;
+using Slant.Caching.Manager.MemoryCache;
+
+namespace Slant.Caching.Manager.Tests;
 using static TestHelper;
 
 [ExcludeFromCodeCoverage]
@@ -235,50 +232,6 @@ public class CacheManagerEventsTest
             }
 
             return resultArgs;
-        }
-    }
-
-    // exclusive inner class for parallel exec of this long running test
-    
-    public class SystemRuntimeSpecific : LongRunningEventTestBase
-    {
-        [Fact]
-        public async Task Events_SysRuntime_ExpireTriggers()
-        {
-            var cfg = new ConfigurationBuilder()
-                .WithSystemRuntimeCacheHandle()
-                .WithExpiration(ExpirationMode.Absolute, TimeSpan.FromSeconds(1))
-                .Build();
-
-            var useKey = Guid.NewGuid().ToString();
-            var region = new RegionId(Guid.NewGuid().ToString());
-            var result = await RunTest(cfg, useKey, region);
-
-            result.Reason.Should().Be(CacheItemRemovedReason.Expired);
-            result.Level.Should().Be(1);
-            result.Key.Should().Be(useKey);
-            result.Region.Should().Be(region.Value);
-        }
-
-        [Fact(Skip = "System.Runtime.Cache is not supported anymore")]
-        [Trait("category", "Unreliable")]
-        public async Task Events_SysRuntime_ExpireEvictsAbove()
-        {
-            var cfg = new ConfigurationBuilder()
-                .WithDictionaryHandle()
-                .And
-                .WithSystemRuntimeCacheHandle()
-                .WithExpiration(ExpirationMode.Absolute, TimeSpan.FromSeconds(1))
-                .Build();
-
-            var useKey = Guid.NewGuid().ToString();
-
-            var result = await RunTest(cfg, useKey, RegionId.Empty, true, false);
-
-            result.Reason.Should().Be(CacheItemRemovedReason.Expired);
-            result.Level.Should().Be(2);
-            result.Key.Should().Be(useKey);
-            result.Region.Should().BeNull();
         }
     }
 
